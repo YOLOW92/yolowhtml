@@ -1,0 +1,676 @@
+//! 树构建的行为测试：把树转成缩进格式（类似 html5lib-tests），和预期逐行比较。
+
+use yolowhtml_dom::{Html, NodeRef};
+
+fn dump(html: &str) -> String {
+    let doc = Html::parse(html);
+    let mut out = String::new();
+    for child in doc.root().children() {
+        walk(child, 0, &mut out);
+    }
+    out
+}
+
+fn walk(n: NodeRef<'_>, depth: usize, out: &mut String) {
+    let pad = "  ".repeat(depth);
+    if let Some(el) = n.as_element() {
+        out.push_str(&format!("{pad}<{}", el.name()));
+        for (k, v) in el.attrs() {
+            out.push_str(&format!(" {k}=\"{v}\""));
+        }
+        out.push_str(">\n");
+    } else if let Some(t) = n.as_text() {
+        out.push_str(&format!("{pad}\"{t}\"\n"));
+    } else if let Some(c) = n.as_comment() {
+        out.push_str(&format!("{pad}<!-- {c} -->\n"));
+    } else {
+        out.push_str(&format!("{pad}<!DOCTYPE>\n"));
+    }
+    for c in n.children() {
+        walk(c, depth + 1, out);
+    }
+}
+
+fn check(html: &str, expected: &str) {
+    let expected: String = expected
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| format!("{}\n", &l[4.min(l.len())..]))
+        .collect();
+    let got = dump(html);
+    assert_eq!(got, expected, "\ninput: {html:?}\n--- got ---\n{got}");
+}
+
+#[test]
+fn implied_structure() {
+    check(
+        "Hello",
+        r#"
+    <html>
+      <head>
+      <body>
+        "Hello"
+    "#,
+    );
+    check(
+        "<!DOCTYPE html><title>T</title><meta charset=utf-8><p>x",
+        r#"
+    <!DOCTYPE>
+    <html>
+      <head>
+        <title>
+          "T"
+        <meta charset="utf-8">
+      <body>
+        <p>
+          "x"
+    "#,
+    );
+}
+
+#[test]
+fn head_elements_after_head_go_into_head() {
+    check(
+        "<html><head></head><link rel=x><body>b",
+        r#"
+    <html>
+      <head>
+        <link rel="x">
+      <body>
+        "b"
+    "#,
+    );
+}
+
+#[test]
+fn bom_and_crlf() {
+    check(
+        "\u{feff}<title>a</title>\r\nb\rc",
+        r#"
+    <html>
+      <head>
+        <title>
+          "a"
+      <body>
+        "b
+    c"
+    "#,
+    );
+}
+
+#[test]
+fn paragraphs_and_lists_close_implicitly() {
+    check(
+        "<p>one<p>two<div>three</div><ul><li>a<li>b<ul><li>c</ul><li>d</ul>",
+        r#"
+    <html>
+      <head>
+      <body>
+        <p>
+          "one"
+        <p>
+          "two"
+        <div>
+          "three"
+        <ul>
+          <li>
+            "a"
+          <li>
+            "b"
+            <ul>
+              <li>
+                "c"
+          <li>
+            "d"
+    "#,
+    );
+    check(
+        "<dl><dt>t<dd>d<dt>u</dl>",
+        r#"
+    <html>
+      <head>
+      <body>
+        <dl>
+          <dt>
+            "t"
+          <dd>
+            "d"
+          <dt>
+            "u"
+    "#,
+    );
+}
+
+#[test]
+fn end_tags_respect_scope() {
+    // `</div>` 在单元格里关不到表格外面的 div；无主的结束标签被忽略，前后文字合并
+    check(
+        "<div><table><tr><td>x</div>y</td></tr></table>z</div>w",
+        r#"
+    <html>
+      <head>
+      <body>
+        <div>
+          <table>
+            <tbody>
+              <tr>
+                <td>
+                  "xy"
+          "z"
+        "w"
+    "#,
+    );
+    check(
+        "<b>a</i>b</b>c",
+        r#"
+    <html>
+      <head>
+      <body>
+        <b>
+          "ab"
+        "c"
+    "#,
+    );
+}
+
+#[test]
+fn tables_get_tbody_and_foster_parenting() {
+    check(
+        "<table>stray<td>a<td>b<tr><th>c</table>",
+        r#"
+    <html>
+      <head>
+      <body>
+        "stray"
+        <table>
+          <tbody>
+            <tr>
+              <td>
+                "a"
+              <td>
+                "b"
+            <tr>
+              <th>
+                "c"
+    "#,
+    );
+    check(
+        "<table><thead><tr><td>h<tbody><tr><td>b</table>",
+        r#"
+    <html>
+      <head>
+      <body>
+        <table>
+          <thead>
+            <tr>
+              <td>
+                "h"
+          <tbody>
+            <tr>
+              <td>
+                "b"
+    "#,
+    );
+    check(
+        "<table><div>d</div><tr><td>x</td></tr></table>",
+        r#"
+    <html>
+      <head>
+      <body>
+        <div>
+          "d"
+        <table>
+          <tbody>
+            <tr>
+              <td>
+                "x"
+    "#,
+    );
+}
+
+#[test]
+fn raw_text_and_rcdata() {
+    check(
+        "<script>if (a < b && c) document.write('</p>')</script><style>p{}</style><textarea>\n&lt;x&gt;</textarea><title>a&amp;b</title>",
+        r#"
+    <html>
+      <head>
+        <script>
+          "if (a < b && c) document.write('</p>')"
+        <style>
+          "p{}"
+      <body>
+        <textarea>
+          "<x>"
+        <title>
+          "a&b"
+    "#,
+    );
+    check(
+        "<SCRIPT>x</SCRIPT >y",
+        r#"
+    <html>
+      <head>
+        <script>
+          "x"
+      <body>
+        "y"
+    "#,
+    );
+}
+
+#[test]
+fn pre_drops_first_newline() {
+    check(
+        "<pre>\n\ncode</pre>",
+        r#"
+    <html>
+      <head>
+      <body>
+        <pre>
+          "
+    code"
+    "#,
+    );
+}
+
+#[test]
+fn foreign_content() {
+    check(
+        "<svg viewBox='0 0 1 1'><path d=x /><title>t</title></svg><p>after",
+        r#"
+    <html>
+      <head>
+      <body>
+        <svg viewbox="0 0 1 1">
+          <path d="x">
+          <title>
+            "t"
+        <p>
+          "after"
+    "#,
+    );
+    // 没闭合的 svg 里出现 HTML 块级标签：跳出外部内容
+    check(
+        "<svg><g><div>text</div>",
+        r#"
+    <html>
+      <head>
+      <body>
+        <svg>
+          <g>
+        <div>
+          "text"
+    "#,
+    );
+}
+
+#[test]
+fn attributes() {
+    check(
+        "<a HREF='/x?a=1&amp;b=2&copy=3' href=dup data-x=\"q'\" checked>l</a>",
+        r#"
+    <html>
+      <head>
+      <body>
+        <a href="/x?a=1&b=2&copy=3" data-x="q'" checked="">
+          "l"
+    "#,
+    );
+}
+
+#[test]
+fn comments_and_bogus_markup() {
+    check(
+        "<!-- c --><p>a<!---->b<?php x ?>c</p><!-->d<! x>e< f</>g",
+        r#"
+    <!--  c  -->
+    <html>
+      <head>
+      <body>
+        <p>
+          "a"
+          <!--  -->
+          "b"
+          <!-- ?php x ? -->
+          "c"
+        <!--  -->
+        "d"
+        <!--  x -->
+        "e< fg"
+    "#,
+    );
+}
+
+#[test]
+fn unclosed_tag_at_eof_is_dropped() {
+    check(
+        "<p>text<a href='x",
+        r#"
+    <html>
+      <head>
+      <body>
+        <p>
+          "text"
+    "#,
+    );
+}
+
+#[test]
+fn deep_nesting_is_bounded() {
+    let html = "<div>".repeat(100_000) + "deep";
+    let doc = Html::parse(&html);
+    let depth = doc
+        .root()
+        .descendants()
+        .map(|n| n.ancestors().count())
+        .max()
+        .unwrap();
+    assert!(depth <= 520, "depth {depth}");
+    assert!(doc.root().text().contains("deep"));
+}
+
+#[test]
+fn garbage_never_panics() {
+    let samples = [
+        "",
+        "<",
+        "</",
+        "<!",
+        "<!-",
+        "<!--",
+        "<a",
+        "<a b",
+        "<a b=",
+        "<a b='",
+        "&",
+        "&#",
+        "&#x",
+        "&#x110000;",
+        "<table><tr><td><table><td>",
+        "<svg><![CDATA[x",
+        "<math><mi><p>",
+        "</body></html><p>after",
+        "<frameset><frame>",
+        "<select><option>a<option>b</select>",
+        "<ruby>a<rt>b<rp>c</ruby>",
+        "<template><td>x</template>",
+        "<plaintext><p>x",
+    ];
+    for s in samples {
+        let doc = Html::parse(s);
+        let _ = doc.root().descendants().count();
+    }
+}
+
+/// 找第一个名为 `name` 的元素，返回它的全部属性。
+fn attrs_of(html: &str, name: &str) -> Vec<(String, String)> {
+    fn find(n: NodeRef<'_>, name: &str) -> Option<Vec<(String, String)>> {
+        if let Some(el) = n.as_element()
+            && el.name() == name
+        {
+            return Some(
+                el.attrs()
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect(),
+            );
+        }
+        n.children().find_map(|c| find(c, name))
+    }
+    let doc = Html::parse(html);
+    doc.root().children().find_map(|c| find(c, name)).unwrap()
+}
+
+#[test]
+fn duplicate_attributes_keep_first() {
+    let got = attrs_of(r#"<div a="1" B="2" A="3" b="4" c="5">x</div>"#, "div");
+    let want = [("a", "1"), ("b", "2"), ("c", "5")];
+    assert_eq!(
+        got,
+        want.map(|(k, v)| (k.to_string(), v.to_string())).to_vec()
+    );
+}
+
+#[test]
+fn duplicate_attributes_keep_first_past_linear_limit() {
+    // 超过线性比较上限后改走哈希集合，语义必须不变
+    let mut html = String::from("<div");
+    for i in 0..40 {
+        html.push_str(&format!(" a{i}=\"first{i}\""));
+    }
+    for i in 0..40 {
+        html.push_str(&format!(" A{i}=\"second{i}\""));
+    }
+    html.push_str(">x</div>");
+    let got = attrs_of(&html, "div");
+    assert_eq!(got.len(), 40);
+    for (i, (k, v)) in got.iter().enumerate() {
+        assert_eq!(
+            (k.as_str(), v.as_str()),
+            (&*format!("a{i}"), &*format!("first{i}"))
+        );
+    }
+}
+
+#[test]
+fn many_distinct_attributes_parse_quickly() {
+    // 平方复杂度时 5 万个属性要几十秒；这里只要求能跑完（测试超时即视为回归）
+    let n = 50_000;
+    let mut html = String::from("<div");
+    for i in 0..n {
+        html.push_str(&format!(" x{i}=1"));
+    }
+    html.push_str(" x0=dup>x</div>");
+    assert_eq!(attrs_of(&html, "div").len(), n);
+}
+
+#[test]
+fn repeated_body_merges_many_attributes() {
+    // 第二个 <body> 的属性补到第一个上：两边都很长时也不能平方
+    let n = 20_000;
+    let mut html = String::from("<body");
+    for i in 0..n {
+        html.push_str(&format!(" a{i}=1"));
+    }
+    html.push_str("><body a0=2");
+    for i in 0..n {
+        html.push_str(&format!(" b{i}=1"));
+    }
+    html.push_str(">x");
+    let got = attrs_of(&html, "body");
+    assert_eq!(got.len(), 2 * n);
+    assert_eq!(got[0], ("a0".to_string(), "1".to_string()));
+}
+
+#[test]
+fn frameset_replaces_body_before_content() {
+    // 规范：`<frameset>` 取代还没有内容的 body，之后只留 frame、noframes 和空白
+    check(
+        "<title>T</title><frameset cols=2><frame src=a><frame src=b></frameset> lost <p>lost",
+        r#"
+    <html>
+      <head>
+        <title>
+          "T"
+      <frameset cols="2">
+        <frame src="a">
+        <frame src="b">
+      "  "
+    "#,
+    );
+    check(
+        "<div><frameset><noframes>x</noframes>",
+        r#"
+    <html>
+      <head>
+      <frameset>
+        <noframes>
+          "x"
+    "#,
+    );
+    // body 里已经有正文：`<frameset>` 被忽略
+    check(
+        "<p>text<frameset><frame src=a>",
+        r#"
+    <html>
+      <head>
+      <body>
+        <p>
+          "text"
+    "#,
+    );
+}
+
+#[test]
+fn foreign_namespaces_follow_the_spec() {
+    use yolowhtml_dom::Namespace;
+    let doc = Html::parse(
+        "<svg><title>a</title><desc><mi>b</mi></desc></svg>\
+         <math><mi><mglyph/><b>c</b></mi><title>d</title>\
+         <annotation-xml><svg></svg><mi></mi></annotation-xml>\
+         <annotation-xml encoding=text/html><mi></mi></annotation-xml></math>",
+    );
+    let ns: Vec<(String, Namespace)> = doc
+        .root()
+        .descendants()
+        .filter_map(|n| n.as_element())
+        .filter(|e| !matches!(e.name(), "html" | "head" | "body"))
+        .map(|e| (e.name().to_string(), e.namespace()))
+        .collect();
+    let (h, s, m) = (Namespace::Html, Namespace::Svg, Namespace::MathMl);
+    let expected = [
+        ("svg", s),
+        ("title", s),
+        ("desc", s),
+        ("mi", h),
+        ("math", m),
+        ("mi", m),
+        ("mglyph", m),
+        ("b", h),
+        ("title", m),
+        ("annotation-xml", m),
+        ("svg", s),
+        ("mi", m),
+        ("annotation-xml", m),
+        ("mi", h),
+    ];
+    let expected: Vec<(String, Namespace)> =
+        expected.iter().map(|(n, s)| (n.to_string(), *s)).collect();
+    assert_eq!(ns, expected);
+}
+
+#[test]
+fn nul_follows_the_spec() {
+    // 正文里忽略；`<` 后面跟 NUL 不是标签；plaintext、外部内容、注释里换成 U+FFFD
+    check(
+        "<p>a\0b<\0c<!--\0--><svg>\0</svg><plaintext>\0",
+        "
+    <html>
+      <head>
+      <body>
+        <p>
+          \"ab<c\"
+          <!-- \u{fffd} -->
+          <svg>
+            \"\u{fffd}\"
+        <plaintext>
+          \"\u{fffd}\"
+    ",
+    );
+    // 误当成 UTF-8 的 UTF-16（每个字符旁边一个 NUL）：NUL 全部删掉，恢复出文字
+    let utf16: String = "<p>Hello world, this paragraph came from a UTF-16 page</p>"
+        .chars()
+        .flat_map(|c| [c, '\0'])
+        .collect();
+    check(
+        &utf16,
+        r#"
+    <html>
+      <head>
+      <body>
+        <p>
+          "Hello world, this paragraph came from a UTF-16 page"
+    "#,
+    );
+}
+
+fn dump_with(html: &str, opts: &yolowhtml_dom::ParseOptions<'_>) -> String {
+    let doc = Html::parse_with(html, opts);
+    let mut out = String::new();
+    for child in doc.root().children() {
+        walk(child, 0, &mut out);
+    }
+    out
+}
+
+#[test]
+fn scripting_off_parses_noscript_as_elements() {
+    let opts = yolowhtml_dom::ParseOptions {
+        scripting: false,
+        ..Default::default()
+    };
+    // head 里的 noscript 只收 head 类元素，别的内容关掉它
+    assert_eq!(
+        dump_with("<head><noscript><link rel=a>X</noscript><p>b</p>", &opts),
+        "<html>\n  <head>\n    <noscript>\n      <link rel=\"a\">\n  <body>\n    \"X\"\n    <p>\n      \"b\"\n"
+    );
+    assert_eq!(
+        dump_with("<p><noscript><b>x</b></noscript>", &opts),
+        "<html>\n  <head>\n  <body>\n    <p>\n      <noscript>\n        <b>\n          \"x\"\n"
+    );
+    // 默认开着脚本：内容是原始文本
+    assert_eq!(
+        dump("<p><noscript><b>x</b></noscript>"),
+        "<html>\n  <head>\n  <body>\n    <p>\n      <noscript>\n        \"<b>x</b>\"\n"
+    );
+}
+
+#[test]
+fn fragment_parsing_uses_the_context_element() {
+    use yolowhtml_dom::{Namespace, ParseOptions};
+    let frag = |ns, ctx, html| {
+        dump_with(
+            html,
+            &ParseOptions {
+                context: Some((ns, ctx)),
+                ..Default::default()
+            },
+        )
+    };
+    // 结果挂在根 html 元素下；表格上下文补上 tbody、tr
+    assert_eq!(
+        frag(Namespace::Html, "table", "<table><tr><td>a"),
+        "<html>\n  <tbody>\n    <tr>\n      <td>\n        \"a\"\n"
+    );
+    assert_eq!(
+        frag(Namespace::Html, "tr", "<td>a<td>b"),
+        "<html>\n  <td>\n    \"a\"\n  <td>\n    \"b\"\n"
+    );
+    // RCDATA 上下文：整段是文本
+    assert_eq!(
+        frag(Namespace::Html, "title", "<b>x&amp;</b>"),
+        "<html>\n  \"<b>x&</b>\"\n"
+    );
+    // 外部内容上下文：元素在上下文的命名空间里，跳出标签按 HTML 处理
+    let doc = Html::parse_with(
+        "<path/><div>x</div>",
+        &ParseOptions {
+            context: Some((Namespace::Svg, "svg")),
+            ..Default::default()
+        },
+    );
+    let ns: Vec<(String, Namespace)> = doc
+        .root()
+        .descendants()
+        .filter_map(|n| n.as_element())
+        .map(|e| (e.name().to_string(), e.namespace()))
+        .collect();
+    assert_eq!(
+        ns,
+        [
+            ("html".to_string(), Namespace::Html),
+            ("path".to_string(), Namespace::Svg),
+            ("div".to_string(), Namespace::Html)
+        ]
+    );
+}

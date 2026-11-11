@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 370" width="100%" role="img">
+  <defs>
+    <linearGradient id="headerGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="60%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#312e81"/>
+    </linearGradient>
+    <linearGradient id="primaryGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#4338ca"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="tealGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0f766e"/>
+      <stop offset="100%" stop-color="#14b8a6"/>
+    </linearGradient>
+    <filter id="cardShadow" x="-4%" y="-4%" width="108%" height="112%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0f172a" flood-opacity="0.05"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#4f46e5"/>
+    </marker>
+  </defs>
+  <style>
+    .title { font: 700 18.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #ffffff; letter-spacing: -0.2px; }
+    .subtitle { font: 400 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #cbd5e1; }
+    .panel-title { font: 700 14.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #0f172a; }
+    .panel-sub { font: 400 11.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #64748b; }
+    .label { font: 500 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #475569; }
+    .label-hi { font: 700 12.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #0f172a; }
+    .val { font: 500 11.5px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; fill: #475569; }
+    .val-hi { font: 700 12px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; fill: #4f46e5; }
+    .val-teal { font: 700 12px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; fill: #0d9488; }
+    .kpi-num { font: 800 22px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; letter-spacing: -0.5px; }
+    .kpi-title { font: 700 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #0f172a; }
+    .kpi-sub { font: 400 10.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #64748b; }
+    .badge { font: 700 10.5px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; }
+    .code { font: 600 11.5px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; fill: #0f172a; }
+    .note { font: 400 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #475569; }
+  </style>
+  <rect width="1040" height="370" rx="14" fill="#f8fafc" stroke="#e2e8f0"/>
+  <rect x="0" y="0" width="1040" height="68" rx="14" fill="url(#headerGrad)"/>
+  <rect x="0" y="54" width="1040" height="14" fill="url(#headerGrad)"/>
+  <text x="26" y="30" class="title">yolowhtml Architecture — Single-Pass Arena DOM to Clean Markdown</text>
+  <text x="26" y="50" class="subtitle">Two focused MIT crates: yolowhtml-dom (HTML5 arena parser &amp; CSS selectors) + yolowhtml (extraction &amp; Markdown)</text>
+  <rect x="887" y="19" width="131" height="28" rx="14" fill="#1e1b4b" stroke="#6366f1" stroke-width="1"/>
+  <text x="952.5" y="37" text-anchor="middle" class="badge" fill="#e0e7ff">Rust 2024 · MIT</text>
+  <rect x="20.0" y="86" width="187.2" height="196" rx="10" fill="#ffffff" stroke="#c7d2fe" stroke-width="1.5" filter="url(#cardShadow)"/>
+  <rect x="20.0" y="86" width="187.2" height="48" rx="10" fill="#eef2ff"/>
+  <rect x="20.0" y="124" width="187.2" height="10" fill="#eef2ff"/>
+  <text x="32.0" y="107" class="label-hi" fill="#4f46e5">1. yolowhtml-dom</text>
+  <text x="32.0" y="124" class="kpi-sub">Zero-Copy Arena HTML5</text>
+  <circle cx="35.0" cy="150" r="2.5" fill="#4f46e5"/>
+  <text x="43.0" y="154" class="note">Single-pass tokenizer (memchr)</text>
+  <circle cx="35.0" cy="174" r="2.5" fill="#4f46e5"/>
+  <text x="43.0" y="178" class="note">Flat Vec&lt;Node&gt; + u32 NodeId</text>
+  <circle cx="35.0" cy="198" r="2.5" fill="#4f46e5"/>
+  <text x="43.0" y="202" class="note">HTML5 implicit tags &amp; scopes</text>
+  <circle cx="35.0" cy="222" r="2.5" fill="#4f46e5"/>
+  <text x="43.0" y="226" class="note">Foster parenting &amp; foreign SVG</text>
+  <circle cx="35.0" cy="246" r="2.5" fill="#4f46e5"/>
+  <text x="43.0" y="250" class="note">CSS selectors (:nth-child, :not)</text>
+  <line x1="209.2" y1="184.0" x2="221.2" y2="184.0" stroke="#4f46e5" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <rect x="223.2" y="86" width="187.2" height="196" rx="10" fill="#ffffff" stroke="#bae6fd" stroke-width="1.5" filter="url(#cardShadow)"/>
+  <rect x="223.2" y="86" width="187.2" height="48" rx="10" fill="#f0f9ff"/>
+  <rect x="223.2" y="124" width="187.2" height="10" fill="#f0f9ff"/>
+  <text x="235.2" y="107" class="label-hi" fill="#0284c7">2. Metadata &amp; Dates</text>
+  <text x="235.2" y="124" class="kpi-sub">Structured Header &amp; Time</text>
+  <circle cx="238.2" cy="150" r="2.5" fill="#0284c7"/>
+  <text x="246.2" y="154" class="note">JSON-LD (@graph, Article, Video)</text>
+  <circle cx="238.2" cy="174" r="2.5" fill="#0284c7"/>
+  <text x="246.2" y="178" class="note">OpenGraph, Twitter &amp; meta tags</text>
+  <circle cx="238.2" cy="198" r="2.5" fill="#0284c7"/>
+  <text x="246.2" y="202" class="note">20-language single-pass dates</text>
+  <circle cx="238.2" cy="222" r="2.5" fill="#0284c7"/>
+  <text x="246.2" y="226" class="note">Preserves original timezones</text>
+  <circle cx="238.2" cy="246" r="2.5" fill="#0284c7"/>
+  <text x="246.2" y="250" class="note">0.945 F1 on htmldate (0.31 ms)</text>
+  <line x1="412.4" y1="184.0" x2="424.4" y2="184.0" stroke="#4f46e5" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <rect x="426.4" y="86" width="187.2" height="196" rx="10" fill="#ffffff" stroke="#99f6e4" stroke-width="1.5" filter="url(#cardShadow)"/>
+  <rect x="426.4" y="86" width="187.2" height="48" rx="10" fill="#f0fdfa"/>
+  <rect x="426.4" y="124" width="187.2" height="10" fill="#f0fdfa"/>
+  <text x="438.4" y="107" class="label-hi" fill="#0d9488">3. Main Content</text>
+  <text x="438.4" y="124" class="kpi-sub">Hybrid Skipper &amp; Arbitration</text>
+  <circle cx="441.4" cy="150" r="2.5" fill="#0d9488"/>
+  <text x="449.4" y="154" class="note">Nav/footer/ad/link-wall skipper</text>
+  <circle cx="441.4" cy="174" r="2.5" fill="#0d9488"/>
+  <text x="449.4" y="178" class="note">Container vs Readability root</text>
+  <circle cx="441.4" cy="198" r="2.5" fill="#0d9488"/>
+  <text x="449.4" y="202" class="note">50% prose share safety guard</text>
+  <circle cx="441.4" cy="222" r="2.5" fill="#0d9488"/>
+  <text x="449.4" y="226" class="note">Auto relax: LinkBlocks -&gt; All</text>
+  <circle cx="441.4" cy="246" r="2.5" fill="#0d9488"/>
+  <text x="449.4" y="250" class="note">&lt;noscript&gt; &amp; Video fallback</text>
+  <line x1="615.6" y1="184.0" x2="627.6" y2="184.0" stroke="#4f46e5" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <rect x="629.6" y="86" width="187.2" height="196" rx="10" fill="#ffffff" stroke="#a7f3d0" stroke-width="1.5" filter="url(#cardShadow)"/>
+  <rect x="629.6" y="86" width="187.2" height="48" rx="10" fill="#ecfdf5"/>
+  <rect x="629.6" y="124" width="187.2" height="10" fill="#ecfdf5"/>
+  <text x="641.6" y="107" class="label-hi" fill="#059669">4. GFM &amp; Math</text>
+  <text x="641.6" y="124" class="kpi-sub">1.000 F1 Markdown Renderer</text>
+  <circle cx="644.6" cy="150" r="2.5" fill="#059669"/>
+  <text x="652.6" y="154" class="note">Smart CommonMark escaping</text>
+  <circle cx="644.6" cy="174" r="2.5" fill="#059669"/>
+  <text x="652.6" y="178" class="note">GFM tables &amp; nested lists</text>
+  <circle cx="644.6" cy="198" r="2.5" fill="#059669"/>
+  <text x="652.6" y="202" class="note">Code language class detection</text>
+  <circle cx="644.6" cy="222" r="2.5" fill="#059669"/>
+  <text x="652.6" y="226" class="note">KaTeX / MathJax / Wiki TeX</text>
+  <circle cx="644.6" cy="246" r="2.5" fill="#059669"/>
+  <text x="652.6" y="250" class="note">Built-in MathML -&gt; LaTeX engine</text>
+  <line x1="818.8" y1="184.0" x2="830.8" y2="184.0" stroke="#4f46e5" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <rect x="832.8" y="86" width="187.2" height="196" rx="10" fill="#ffffff" stroke="#fde68a" stroke-width="1.5" filter="url(#cardShadow)"/>
+  <rect x="832.8" y="86" width="187.2" height="48" rx="10" fill="#fffbeb"/>
+  <rect x="832.8" y="124" width="187.2" height="10" fill="#fffbeb"/>
+  <text x="844.8" y="107" class="label-hi" fill="#d97706">5. Diagnostics</text>
+  <text x="844.8" y="124" class="kpi-sub">Barriers, Links &amp; Hashes</text>
+  <circle cx="847.8" cy="150" r="2.5" fill="#d97706"/>
+  <text x="855.8" y="154" class="note">Paywall / CAPTCHA / Bot barrier</text>
+  <circle cx="847.8" cy="174" r="2.5" fill="#d97706"/>
+  <text x="855.8" y="178" class="note">Coverage completeness checks</text>
+  <circle cx="847.8" cy="198" r="2.5" fill="#d97706"/>
+  <text x="855.8" y="202" class="note">Resolved links &amp; srcset images</text>
+  <circle cx="847.8" cy="222" r="2.5" fill="#d97706"/>
+  <text x="855.8" y="226" class="note">BLAKE3 + SimHash fingerprints</text>
+  <circle cx="847.8" cy="246" r="2.5" fill="#d97706"/>
+  <text x="855.8" y="250" class="note">JS API/link scanner (scan_script)</text>
+  <rect x="20" y="298" width="1000" height="54" rx="10" fill="#ffffff" stroke="#e2e8f0" filter="url(#cardShadow)"/>
+  <text x="38" y="321" class="label-hi">Unified Output: Document</text>
+  <text x="215" y="321" class="code">markdown · metadata · barrier · coverage · plain_text · html · links · images · fingerprints</text>
+  <text x="38" y="340" class="panel-sub">#![forbid(unsafe_code)] across both yolowhtml-dom and yolowhtml · Zero-allocation reuse via ProcessWorkspace · Powers PageSift 1.2.7+</text>
+</svg>

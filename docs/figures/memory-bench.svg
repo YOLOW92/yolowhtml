@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 280" width="100%" role="img">
+  <defs>
+    <linearGradient id="headerGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="60%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#312e81"/>
+    </linearGradient>
+    <linearGradient id="primaryGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#4338ca"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="tealGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0f766e"/>
+      <stop offset="100%" stop-color="#14b8a6"/>
+    </linearGradient>
+    <filter id="cardShadow" x="-4%" y="-4%" width="108%" height="112%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0f172a" flood-opacity="0.05"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#4f46e5"/>
+    </marker>
+  </defs>
+  <style>
+    .title { font: 700 18.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #ffffff; letter-spacing: -0.2px; }
+    .subtitle { font: 400 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #cbd5e1; }
+    .panel-title { font: 700 14.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #0f172a; }
+    .panel-sub { font: 400 11.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #64748b; }
+    .label { font: 500 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #475569; }
+    .label-hi { font: 700 12.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #0f172a; }
+    .val { font: 500 11.5px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; fill: #475569; }
+    .val-hi { font: 700 12px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; fill: #4f46e5; }
+    .val-teal { font: 700 12px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; fill: #0d9488; }
+    .kpi-num { font: 800 22px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; letter-spacing: -0.5px; }
+    .kpi-title { font: 700 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #0f172a; }
+    .kpi-sub { font: 400 10.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #64748b; }
+    .badge { font: 700 10.5px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; }
+    .code { font: 600 11.5px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; fill: #0f172a; }
+    .note { font: 400 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #475569; }
+  </style>
+  <rect width="1040" height="280" rx="14" fill="#f8fafc" stroke="#e2e8f0"/>
+  <rect x="0" y="0" width="1040" height="68" rx="14" fill="url(#headerGrad)"/>
+  <rect x="0" y="54" width="1040" height="14" fill="url(#headerGrad)"/>
+  <text x="26" y="30" class="title">Peak Worker Memory &amp; Arena Reuse — A2 HTML Main-Content Corpus</text>
+  <text x="26" y="50" class="subtitle">Zero-copy source slicing + contiguous Vec&lt;Node&gt; arena + ProcessWorkspace recycling across pages</text>
+  <rect x="740" y="19" width="278" height="28" rx="14" fill="#1e1b4b" stroke="#6366f1" stroke-width="1"/>
+  <text x="879.0" y="37" text-anchor="middle" class="badge" fill="#e0e7ff">20 MB Peak · #![forbid(unsafe_code)]</text>
+  <rect x="20" y="84" width="493.0" height="178" rx="10" fill="#ffffff" stroke="#e2e8f0" filter="url(#cardShadow)"/>
+  <text x="38" y="109" class="panel-title">Peak Memory per Worker (MB ↓)</text>
+  <text x="38" y="127" class="panel-sub">A2 real-web HTML pages · Lower memory is better</text>
+  <rect x="28" y="142" width="477.0" height="24" rx="5" fill="#eef2ff"/>
+  <text x="116" y="158" text-anchor="end" class="label-hi">yolowhtml</text>
+  <rect x="126" y="146" width="17.0" height="16" rx="4" fill="url(#primaryGrad)"/>
+  <text x="153.0" y="158" class="val-hi">20 MB peak  (6.2x less than trafilatura)</text>
+  <text x="116" y="192" text-anchor="end" class="label">trafilatura</text>
+  <rect x="126" y="180" width="42.3" height="16" rx="4" fill="#94a3b8"/>
+  <text x="178.3" y="192" class="val">123 MB peak  (Python + lxml DOM)</text>
+  <text x="116" y="226" text-anchor="end" class="label">Readability+TD</text>
+  <rect x="126" y="214" width="132.0" height="16" rx="4" fill="#94a3b8"/>
+  <text x="268.0" y="226" class="val">1,200 MB peak  (60.8x more memory)</text>
+  <rect x="527.0" y="84" width="493.0" height="178" rx="10" fill="#ffffff" stroke="#e2e8f0" filter="url(#cardShadow)"/>
+  <text x="545.0" y="109" class="panel-title">Why yolowhtml Uses So Little Memory</text>
+  <text x="545.0" y="127" class="panel-sub">Designed for high-concurrency LLM &amp; crawler pipelines</text>
+  <circle cx="549.0" cy="148" r="3" fill="#0d9488"/>
+  <text x="559.0" y="152" class="label-hi">Zero-copy text:</text>
+  <text x="679.0" y="152" class="note">Slices point straight into input &amp;str unless decoding entities.</text>
+  <circle cx="549.0" cy="174" r="3" fill="#0d9488"/>
+  <text x="559.0" y="178" class="label-hi">Compact u32 DOM:</text>
+  <text x="679.0" y="178" class="note">One flat Vec&lt;Node&gt;; no per-node Box/Arc heap headers.</text>
+  <circle cx="549.0" cy="200" r="3" fill="#0d9488"/>
+  <text x="559.0" y="204" class="label-hi">Single DOM build:</text>
+  <text x="679.0" y="204" class="note">Metadata, dates, main content &amp; links read the same tree.</text>
+  <circle cx="549.0" cy="226" r="3" fill="#0d9488"/>
+  <text x="559.0" y="230" class="label-hi">Arena recycling:</text>
+  <text x="679.0" y="230" class="note">process_with_workspace() reuses DOM &amp; skipper buffers.</text>
+</svg>

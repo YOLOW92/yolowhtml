@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 440" width="100%" role="img">
+  <defs>
+    <linearGradient id="headerGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="60%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#312e81"/>
+    </linearGradient>
+    <linearGradient id="primaryGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#4338ca"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="tealGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0f766e"/>
+      <stop offset="100%" stop-color="#14b8a6"/>
+    </linearGradient>
+    <filter id="cardShadow" x="-4%" y="-4%" width="108%" height="112%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0f172a" flood-opacity="0.05"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#4f46e5"/>
+    </marker>
+  </defs>
+  <style>
+    .title { font: 700 18.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #ffffff; letter-spacing: -0.2px; }
+    .subtitle { font: 400 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #cbd5e1; }
+    .panel-title { font: 700 14.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #0f172a; }
+    .panel-sub { font: 400 11.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #64748b; }
+    .label { font: 500 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #475569; }
+    .label-hi { font: 700 12.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #0f172a; }
+    .val { font: 500 11.5px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; fill: #475569; }
+    .val-hi { font: 700 12px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; fill: #4f46e5; }
+    .val-teal { font: 700 12px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; fill: #0d9488; }
+    .kpi-num { font: 800 22px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; letter-spacing: -0.5px; }
+    .kpi-title { font: 700 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #0f172a; }
+    .kpi-sub { font: 400 10.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #64748b; }
+    .badge { font: 700 10.5px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; }
+    .code { font: 600 11.5px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; fill: #0f172a; }
+    .note { font: 400 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; fill: #475569; }
+  </style>
+  <rect width="1040" height="440" rx="14" fill="#f8fafc" stroke="#e2e8f0"/>
+  <rect x="0" y="0" width="1040" height="68" rx="14" fill="url(#headerGrad)"/>
+  <rect x="0" y="54" width="1040" height="14" fill="url(#headerGrad)"/>
+  <text x="26" y="30" class="title">yolowhtml — HTML to Markdown &amp; Main-Content Extraction Benchmark</text>
+  <text x="26" y="50" class="subtitle">i7-10700 · 15 GB RAM · Zero-copy arena DOM + single-pass content &amp; metadata extraction</text>
+  <rect x="831" y="19" width="187" height="28" rx="14" fill="#1e1b4b" stroke="#6366f1" stroke-width="1"/>
+  <text x="924.5" y="37" text-anchor="middle" class="badge" fill="#e0e7ff">0.24 ms/page · 1.000 F1</text>
+  <rect x="20.0" y="82" width="241.0" height="76" rx="10" fill="#ffffff" stroke="#c7d2fe" filter="url(#cardShadow)"/>
+  <rect x="20.0" y="82" width="6" height="76" rx="3" fill="#4f46e5"/>
+  <text x="38.0" y="111" class="kpi-num" fill="#4f46e5">0.24 ms/page</text>
+  <text x="38.0" y="130" class="kpi-title">HTML → Markdown Speed</text>
+  <text x="38.0" y="146" class="kpi-sub">8.12x faster than Turndown (1.9 ms)</text>
+  <rect x="273.0" y="82" width="241.0" height="76" rx="10" fill="#ffffff" stroke="#99f6e4" filter="url(#cardShadow)"/>
+  <rect x="273.0" y="82" width="6" height="76" rx="3" fill="#0d9488"/>
+  <text x="291.0" y="111" class="kpi-num" fill="#0d9488">1.0 ms/page</text>
+  <text x="291.0" y="130" class="kpi-title">Main Content (597 pages)</text>
+  <text x="291.0" y="146" class="kpi-sub">7.26x faster than crw (7.4 ms)</text>
+  <rect x="526.0" y="82" width="241.0" height="76" rx="10" fill="#ffffff" stroke="#a7f3d0" filter="url(#cardShadow)"/>
+  <rect x="526.0" y="82" width="6" height="76" rx="3" fill="#059669"/>
+  <text x="544.0" y="111" class="kpi-num" fill="#059669">1.000 F1</text>
+  <text x="544.0" y="130" class="kpi-title">Markdown Structure Fidelity</text>
+  <text x="544.0" y="146" class="kpi-sub">600 docs · 15 categories · vs 0.936</text>
+  <rect x="779.0" y="82" width="241.0" height="76" rx="10" fill="#ffffff" stroke="#bae6fd" filter="url(#cardShadow)"/>
+  <rect x="779.0" y="82" width="6" height="76" rx="3" fill="#0284c7"/>
+  <text x="797.0" y="111" class="kpi-num" fill="#0284c7">20 MB Peak</text>
+  <text x="797.0" y="130" class="kpi-title">Per-Worker Memory (A2)</text>
+  <text x="797.0" y="146" class="kpi-sub">60.8x less than Readability+Turndown</text>
+  <rect x="20" y="172" width="493.0" height="248" rx="10" fill="#ffffff" stroke="#e2e8f0" filter="url(#cardShadow)"/>
+  <text x="38" y="197" class="panel-title">Main-Content Extraction Speed (p50 ms/page ↓)</text>
+  <text x="38" y="215" class="panel-sub">Firecrawl 597-page corpus · Single thread · Lower is faster</text>
+  <rect x="28" y="230" width="477.0" height="24" rx="5" fill="#eef2ff"/>
+  <text x="118" y="246" text-anchor="end" class="label-hi">yolowhtml</text>
+  <rect x="128" y="234" width="9.8" height="16" rx="4" fill="url(#primaryGrad)"/>
+  <text x="145.8" y="246" class="val-hi">1.0 ms/page  (7.26x faster · 6,489 pages/s @ 16T)</text>
+  <text x="118" y="275" text-anchor="end" class="label">crw (Rust)</text>
+  <rect x="128" y="263" width="24.1" height="16" rx="4" fill="#94a3b8"/>
+  <text x="160.1" y="275" class="val">7.4 ms/page  (p95 36.0 ms)</text>
+  <text x="118" y="304" text-anchor="end" class="label">trafilatura</text>
+  <rect x="128" y="292" width="38.8" height="16" rx="4" fill="#94a3b8"/>
+  <text x="174.8" y="304" class="val">21.2 ms/page  (p95 136 ms)</text>
+  <text x="118" y="333" text-anchor="end" class="label">Crawl4AI 0.9</text>
+  <rect x="128" y="321" width="50.8" height="16" rx="4" fill="#94a3b8"/>
+  <text x="186.8" y="333" class="val">38.6 ms/page  (p95 157 ms)</text>
+  <text x="118" y="362" text-anchor="end" class="label">MarkItDown</text>
+  <rect x="128" y="350" width="51.8" height="16" rx="4" fill="#94a3b8"/>
+  <text x="187.8" y="362" class="val">40.4 ms/page  (p95 145 ms)</text>
+  <text x="118" y="391" text-anchor="end" class="label">Readability+TD</text>
+  <rect x="128" y="379" width="100.0" height="16" rx="4" fill="#94a3b8"/>
+  <text x="236.0" y="391" class="val">174.0 ms/page  (p95 1,170 ms)</text>
+  <rect x="527.0" y="172" width="493.0" height="248" rx="10" fill="#ffffff" stroke="#e2e8f0" filter="url(#cardShadow)"/>
+  <text x="545.0" y="197" class="panel-title">HTML → Markdown &amp; Date Speed (ms/page ↓)</text>
+  <text x="545.0" y="215" class="panel-sub">600 generated docs &amp; 1,000 htmldate pages · Lower is faster</text>
+  <rect x="535.0" y="230" width="477.0" height="24" rx="5" fill="#f0fdfa"/>
+  <text x="649.0" y="246" text-anchor="end" class="label-hi">yolowhtml (MD)</text>
+  <rect x="659.0" y="234" width="22.7" height="16" rx="4" fill="url(#tealGrad)"/>
+  <text x="689.7" y="246" class="val-teal">0.24 ms/page  (8.12x faster · F1 1.000)</text>
+  <text x="649.0" y="275" text-anchor="end" class="label">Turndown (MD)</text>
+  <rect x="659.0" y="263" width="72.0" height="16" rx="4" fill="#94a3b8"/>
+  <text x="739.0" y="275" class="val">1.95 ms/page  (F1 0.799)</text>
+  <text x="649.0" y="304" text-anchor="end" class="label">html2text (MD)</text>
+  <rect x="659.0" y="292" width="75.0" height="16" rx="4" fill="#94a3b8"/>
+  <text x="742.0" y="304" class="val">2.10 ms/page  (F1 0.852)</text>
+  <text x="649.0" y="333" text-anchor="end" class="label">markdownify (MD)</text>
+  <rect x="659.0" y="321" width="126.0" height="16" rx="4" fill="#94a3b8"/>
+  <text x="793.0" y="333" class="val">5.40 ms/page  (F1 0.936)</text>
+  <rect x="535.0" y="346" width="477.0" height="24" rx="5" fill="#f0fdfa"/>
+  <text x="649.0" y="362" text-anchor="end" class="label-hi">yolowhtml (Date)</text>
+  <rect x="659.0" y="350" width="26.2" height="16" rx="4" fill="url(#tealGrad)"/>
+  <text x="693.2" y="362" class="val-teal">0.31 ms/page  (6.45x faster · F1 0.945)</text>
+  <text x="649.0" y="391" text-anchor="end" class="label">htmldate (Date)</text>
+  <rect x="659.0" y="379" width="107.4" height="16" rx="4" fill="#94a3b8"/>
+  <text x="774.4" y="391" class="val">4.04 ms/page  (extensive · F1 0.945)</text>
+</svg>
