@@ -1,4 +1,4 @@
-//! pagesift 自己的测试共用的工具，不发布。
+//! yolowhtml 自己的测试共用的工具，不发布。
 //!
 //! 复杂度护栏（"这么大的输入必须在多少时间内处理完"）量的是被测代码用掉的 CPU 时间，不是墙钟。
 //! 墙钟把别的测试、别的进程抢走的时间也算进去：CI 的 macOS 机器只有几个核，同时跑着别的测试，
@@ -49,7 +49,54 @@ mod imp {
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+mod imp {
+    use std::time::Duration;
+
+    // libc 不提供 Win32 线程计时 API，这里直接声明 kernel32 的两个函数；
+    // FILETIME 是 64 位的 100 纳秒计数，拆成两个 u32 字段。
+    #[repr(C)]
+    struct FileTime {
+        low: u32,
+        high: u32,
+    }
+
+    unsafe extern "system" {
+        fn GetCurrentThread() -> *mut std::ffi::c_void;
+        fn GetThreadTimes(
+            thread: *mut std::ffi::c_void,
+            creation: *mut FileTime,
+            exit: *mut FileTime,
+            kernel: *mut FileTime,
+            user: *mut FileTime,
+        ) -> i32;
+    }
+
+    pub fn thread_cpu_time() -> Duration {
+        fn ticks(ft: &FileTime) -> u64 {
+            ((ft.high as u64) << 32) | ft.low as u64
+        }
+        let zero = || FileTime { low: 0, high: 0 };
+        let mut creation = zero();
+        let mut exit = zero();
+        let mut kernel = zero();
+        let mut user = zero();
+        // SAFETY: GetCurrentThread 返回的伪句柄不需要关闭；四个 FileTime 指针都有效可写。
+        let ok = unsafe {
+            GetThreadTimes(
+                GetCurrentThread(),
+                &mut creation,
+                &mut exit,
+                &mut kernel,
+                &mut user,
+            )
+        };
+        assert_ne!(ok, 0, "GetThreadTimes failed");
+        Duration::from_nanos((ticks(&kernel) + ticks(&user)) * 100)
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
 mod imp {
     use std::sync::OnceLock;
     use std::time::{Duration, Instant};
@@ -68,14 +115,26 @@ mod tests {
     #[test]
     fn sleeping_uses_no_cpu_and_spinning_does() {
         let (_, slept) = cpu_time(|| std::thread::sleep(Duration::from_millis(200)));
-        // 固定的工作量，不按墙钟转圈：机器忙时线程被抢走，按墙钟转 100 ms 用到的 CPU 可能不到一半
+        // 转到 CPU 时钟说够了为止：不按墙钟（机器忙时线程被抢走，转满墙钟也用不到
+        // 那么多 CPU），也不按固定圈数（Windows 的线程 CPU 时钟按约 15.6 ms 的节拍
+        // 记账，两千万圈在这把尺子下会读成 0）。圈数另设上限，时钟真坏了就让下面的
+        // 断言失败，不无限转。
         let (_, spun) = cpu_time(|| {
+            let start = thread_cpu_time();
             let mut x = 0u64;
-            for i in 0..20_000_000u64 {
-                x = std::hint::black_box(x.wrapping_add(i));
+            let mut i = 0u64;
+            while thread_cpu_time().saturating_sub(start) < Duration::from_millis(200) {
+                for _ in 0..100_000 {
+                    x = std::hint::black_box(x.wrapping_add(i));
+                    i += 1;
+                }
+                if i >= 4_000_000_000 {
+                    break;
+                }
             }
+            x
         });
-        if cfg!(unix) {
+        if cfg!(any(unix, windows)) {
             assert!(slept < Duration::from_millis(50), "{slept:?}");
         }
         assert!(
@@ -97,7 +156,7 @@ mod tests {
             .join()
             .unwrap();
         });
-        if cfg!(unix) {
+        if cfg!(any(unix, windows)) {
             assert!(own < Duration::from_millis(50), "{own:?}");
         }
     }

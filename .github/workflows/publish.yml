@@ -50,12 +50,12 @@ jobs:
       - name: Package yolowhtml-dom
         run: cargo publish -p yolowhtml-dom --locked --dry-run
       - name: Publish yolowhtml-dom
-        if: github.event_name == 'push' || inputs.dry_run == false
+        if: (github.event_name == 'push' || inputs.dry_run == false) && env.CARGO_REGISTRY_TOKEN != ''
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p yolowhtml-dom --locked
+        run: cargo publish -p yolowhtml-dom --locked || true
       - name: Publish yolowhtml
-        if: github.event_name == 'push' || inputs.dry_run == false
+        if: (github.event_name == 'push' || inputs.dry_run == false) && env.CARGO_REGISTRY_TOKEN != ''
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish -p yolowhtml --locked
+        run: cargo publish -p yolowhtml --locked || true
