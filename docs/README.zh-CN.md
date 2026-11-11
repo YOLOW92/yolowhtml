@@ -23,8 +23,8 @@
 
 ## 核心特性速览
 
-- **`yolowhtml`**（`crates/yolowhtml`）：网页正文提取、GFM Markdown 渲染（600 篇生成文档 15 个结构类别平均 F1 达 **`1.000`**）、KaTeX / MathJax / MathML → LaTeX 公式还原、20 种语言单趟发布日期识别（htmldate 1,000 页留出集 F1 **`0.945`**，单页仅 **`0.31 ms`**）、JSON-LD / OpenGraph 元数据提取、付费墙/验证码拦截页识别（`Barrier`）、完整度诊断警告（`Coverage`）及工作线程 Arena 复用（`ProcessWorkspace`）。
-- **`yolowhtml-dom`**（`crates/yolowhtml-dom`）：零拷贝 Arena HTML5 解析器（`Vec<Node>` + `u32` `NodeId`）、影响正文结构的 HTML5 建树规则（隐式标签、自动闭合、表格 foster parenting、SVG/MathML 外部命名空间、片段解析与 `scripting=false` 模式）、完整 HTML5 命名字符实体解码，以及 CSS 选择器引擎（`Selector::parse`、`:nth-child`、`:not`）。
+- **`yolowhtml`（主包 — HTML 转 Markdown 与正文提取引擎）**：基于 `yolowhtml-dom` 构建的一站式入口（`process(html, &opts)`）。负责网页正文提取、GFM Markdown 渲染（600 篇生成文档 15 个结构类别平均 F1 达 **`1.000`**）、KaTeX / MathJax / MathML → LaTeX 公式还原、20 种语言单趟发布日期识别（htmldate 1,000 页留出集 F1 **`0.945`**，单页仅 **`0.31 ms`**）、JSON-LD / OpenGraph 元数据提取、付费墙/验证码拦截页识别（`Barrier`）、完整度诊断警告（`Coverage`）及工作线程 Arena 复用（`ProcessWorkspace`）。
+- **`yolowhtml-dom`（底座包 — 零拷贝 Arena HTML5 DOM 与 CSS 选择器）**：将 HTML 解析为连续内存的 `Vec<Node>` Arena 树（以 `u32` `NodeId` 索引），实现影响正文结构的 HTML5 建树规则（隐式标签、自动闭合、表格 foster parenting、SVG/MathML 外部命名空间、片段解析与 `scripting=false` 模式）、完整 HTML5 命名字符实体解码，以及 CSS 选择器引擎（`Selector::parse`、`:nth-child`、`:not`）。同时也通过 `yolowhtml::yolowhtml_dom` 直接重导出。
 - **100% 安全 Rust**：`yolowhtml` 与 `yolowhtml-dom` 均强制开启 `#![forbid(unsafe_code)]`。
 - **`yolow*` 开源组件家族**：与 [`yolow64`](https://github.com/YOLOW92/yolow64)、[`yolowpdf`](https://github.com/YOLOW92/yolowpdf) 一起作为核心依赖驱动 [PageSift](https://github.com/YOLOW92/pagesift) `1.2.7+`。
 
@@ -36,11 +36,11 @@
 
 第二堵墙是**正文误裁与 Markdown 结构失真**。传统的 Readability 算法只挑一个“最高分节点”，遇到产品页、文档站、或者“导语在一个 `<article>`、步骤在兄弟节点”的食谱/技术页就会丢掉大半内容；而常见的 HTML-to-Markdown 库要么丢掉表格和 `<br>` 换行，要么把 KaTeX / MathJax / MathML 数学公式变成乱码，要么把正文里的 `a_b_c`、`2 * 3` 满篇乱加反斜杠，却忘了转义行首的 `1.`。
 
-于是我们从零写了这两层引擎：
-1. **`yolowhtml-dom`**：零拷贝 Arena HTML5 解析器。所有节点紧凑存放在单个 `Vec<Node>` 中，用 `u32` 下标互相引用；不含字符实体的文本与属性直接切片引用源字符串 `&str`；并完整实现了影响文档结构的 HTML5 树构建规则。
-2. **`yolowhtml`**：单趟正文与 Markdown 引擎。**一页只建一棵 DOM 树**，在同一棵树上完成元数据与 20 语种日期扫描、容器规律与 Readability 双候选仲裁（配合 50% 正文占比安全护栏）、过短结果自动多级放宽（`LinkBlocks` → `All` → `Hidden` → `<noscript>` 展开 → `VideoObject` JSON-LD 兜底），以及 `1.000` F1 保真度的 CommonMark/GFM 渲染。
+于是我们从零设计了清晰分层的两个 crate：
+1. **`yolowhtml`（上层主包 — 正文提取与 Markdown 渲染引擎）**：绝大多数用户直接安装的入口 crate。它对每个页面只调用一次底层 `yolowhtml-dom`，然后**直接复用同一棵内存 DOM 树**完成全部提取步骤——包括 JSON-LD/meta 与 20 语种发布日期扫描、容器规律与 Readability 双候选仲裁（配合 50% 正文占比安全护栏）、过短结果自动多级放宽（`LinkBlocks` → `All` → `Hidden` → `<noscript>` 展开 → `VideoObject` JSON-LD 兜底），以及 `1.000` F1 保真度的 CommonMark/GFM 渲染。
+2. **`yolowhtml-dom`（底层底座包 — 零拷贝 Arena HTML5 解析器与选择器）**：负责将原始 HTML 字符串解析为紧凑的 DOM 树。所有节点存放在单个连续的 `Vec<Node>` 中并用 `u32` 下标互相引用；不含字符实体的文本与属性直接切片借用源字符串 `&str`；完整实现了影响文档结构的 WHATWG HTML5 树构建规则，并提供独立的 CSS 选择器查询能力。
 
-现在，我们将这套 HTML 解析与内容提取核心从 PageSift `1.2.6` 中独立拆出，以 **MIT 许可证**发布为 `yolowhtml-dom` 与 `yolowhtml`，并由 PageSift `1.2.7+` 直接通过依赖接入。
+现在，我们将这套 HTML 解析与内容提取核心从 PageSift `1.2.6` 中独立拆出，以 **MIT 许可证**发布为 `yolowhtml` 与 `yolowhtml-dom`，并由 PageSift `1.2.7+` 直接通过依赖接入。
 
 ---
 
