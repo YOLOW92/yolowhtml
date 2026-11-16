@@ -19,7 +19,7 @@ const DESCEND_SHARE: f64 = 0.85;
 // 的 xpaths.py，按元素一次匹配成特征位（见 crate::features），这里只读位。
 
 /// 文章模式里要去掉的非正文块：只看常见的容器标签，正文段落里的 `<a>`、`<em>` 不判断。
-pub(crate) fn is_furniture(el: Element<'_>, features: u32) -> bool {
+pub(crate) fn is_furniture(node: &NodeR<'_>, el: Element<'_>, features: u32) -> bool {
     if !matches!(
         el.tag(),
         Tag::Div
@@ -31,51 +31,35 @@ pub(crate) fn is_furniture(el: Element<'_>, features: u32) -> bool {
             | Tag::Li
             | Tag::Aside
             | Tag::Figure
-    ) && el.tag() != Tag::Figcaption
-    {
+            | Tag::Figcaption
+    ) {
         return false;
     }
-    if el.tag() == Tag::Figcaption {
+    if features & crate::features::DISCARD != 0 {
         return true;
     }
-    features & crate::features::DISCARD != 0
+    let fig_or_cap = matches!(el.tag(), Tag::Figure | Tag::Figcaption);
+    if features & crate::features::ATTACHMENT != 0 && !fig_or_cap {
+        return true;
+    }
+    features & crate::features::CAPTION != 0
+        && !fig_or_cap
+        && !node
+            .ancestors()
+            .any(|a| matches!(a.tag(), Some(Tag::Figure | Tag::Figcaption)))
 }
 
 /// 按当前跳过规则数子树里会输出的、不在链接里的文字（不拼 Markdown，只遍历计数）。
 /// 和渲染器的口径一致：白名单模式下，行内文字只在它所属的块级容器被允许时计入
 /// （标题、列表项、单元格总是允许）。
 pub(crate) fn prose(node: &NodeR<'_>, skipper: &Skipper, wl: crate::markdown::Whitelist) -> usize {
-    use crate::markdown::Whitelist;
-    let allowed = |n: &NodeR<'_>| match wl {
-        Whitelist::Off => true,
-        Whitelist::On { div } => match n.tag() {
-            Some(
-                Tag::P
-                | Tag::Blockquote
-                | Tag::Li
-                | Tag::Dd
-                | Tag::Dt
-                | Tag::Td
-                | Tag::Th
-                | Tag::Pre
-                | Tag::Code
-                | Tag::H1
-                | Tag::H2
-                | Tag::H3
-                | Tag::H4
-                | Tag::H5
-                | Tag::H6,
-            ) => true,
-            Some(Tag::Div) => div || crate::dom::is_heading(n),
-            _ => false,
-        },
-    };
     fn walk(
         n: &NodeR<'_>,
         skipper: &Skipper,
+        wl: crate::markdown::Whitelist,
         in_link: bool,
+        in_figcaption: bool,
         keep: bool,
-        allowed: &dyn Fn(&NodeR<'_>) -> bool,
     ) -> usize {
         let mut total = 0;
         for c in n.children() {
@@ -86,9 +70,21 @@ pub(crate) fn prose(node: &NodeR<'_>, skipper: &Skipper, wl: crate::markdown::Wh
             } else if c.is_element() && !skipper.skip(&c) {
                 // 块级元素开始自己的段落；行内元素沿用所在段落的去留
                 let block = c.tag().is_some_and(crate::markdown::is_block_tag)
+                    || crate::extract::is_disclosure_header(&c)
                     || skipper.has_block_descendant(&c);
-                let k = if block { allowed(&c) } else { keep };
-                total += walk(&c, skipper, in_link || c.tag() == Some(Tag::A), k, allowed);
+                let k = if block {
+                    crate::markdown::allows_prose_container(&c, skipper, wl, in_figcaption)
+                } else {
+                    keep
+                };
+                total += walk(
+                    &c,
+                    skipper,
+                    wl,
+                    in_link || c.tag() == Some(Tag::A),
+                    in_figcaption || c.tag() == Some(Tag::Figcaption),
+                    k,
+                );
             }
         }
         total
@@ -96,7 +92,9 @@ pub(crate) fn prose(node: &NodeR<'_>, skipper: &Skipper, wl: crate::markdown::Wh
     if node.is_element() && skipper.skip(node) {
         return 0;
     }
-    walk(node, skipper, false, allowed(node), &allowed)
+    let in_figcaption = node.tag() == Some(Tag::Figcaption);
+    let keep = crate::markdown::allows_prose_container(node, skipper, wl, false);
+    walk(node, skipper, wl, false, in_figcaption, keep)
 }
 
 /// 按当前跳过规则数子树里的全部可见文字（含链接文字），不算评论区：
@@ -120,12 +118,11 @@ pub(crate) fn has_paragraph(node: &NodeR<'_>, skipper: &Skipper) -> bool {
 }
 
 /// 文章模式里整个去掉的标签（trafilatura 的 MANUALLY_CLEANED 里 pagesift 默认还保留的那些）：
-/// 题图和图注、表单和按钮、时间戳。
+/// 表单和按钮、时间戳。
 pub(crate) fn is_cleaned_tag(tag: Tag) -> bool {
     matches!(
         tag,
-        Tag::Figure
-            | Tag::Form
+        Tag::Form
             | Tag::Button
             | Tag::Label
             | Tag::Legend

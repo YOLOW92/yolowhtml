@@ -20,20 +20,9 @@ impl Renderer<'_> {
                     inline.clear();
                 }
                 self.block(child, &mut blocks);
-            } else if !keep
-                && self.keep_data_images
-                && child.descendants().any(|node| {
-                    node.tag() == Some(Tag::Img)
-                        && element(&node)
-                            .and_then(|el| image_src(el, true))
-                            .is_some_and(|src| {
-                                src.get(..5)
-                                    .is_some_and(|s| s.eq_ignore_ascii_case("data:"))
-                            })
-                })
-            {
+            } else if !keep && self.should_rescue_inline(&child) {
                 // Article-mode whitelisting otherwise discards a standalone
-                // inline image between block elements together with stray text.
+                // inline image (or figure image/math wrapper) between block elements.
                 inline.clear();
                 self.inline_into(child, &mut inline);
                 flush_paragraph(&mut inline, &mut blocks);
@@ -45,6 +34,45 @@ impl Renderer<'_> {
             flush_paragraph(&mut inline, &mut blocks);
         }
         blocks
+    }
+
+    fn should_rescue_inline(&self, child: &NodeR<'_>) -> bool {
+        if self.keep_data_images
+            && child.descendants().any(|node| {
+                node.tag() == Some(Tag::Img)
+                    && element(&node)
+                        .and_then(|el| image_src(el, true))
+                        .is_some_and(|src| {
+                            src.get(..5)
+                                .is_some_and(|s| s.eq_ignore_ascii_case("data:"))
+                        })
+            })
+        {
+            return true;
+        }
+        if !self.in_figure() {
+            return false;
+        }
+        if self.math(child).is_some_and(|m| matches!(m, Math::Tex(..))) {
+            return true;
+        }
+        let has_img = child.descendants().any(|node| {
+            node.tag() == Some(Tag::Img)
+                && element(&node)
+                    .and_then(|el| image_src(el, self.keep_data_images))
+                    .is_some()
+        });
+        has_img && !self.has_visible_inline_text(child)
+    }
+
+    fn has_visible_inline_text(&self, node: &NodeR<'_>) -> bool {
+        if let Some(t) = node.as_text() {
+            return !t.trim().is_empty();
+        }
+        if !node.is_element() || self.skip(node) || self.math(node).is_some() {
+            return false;
+        }
+        node.children().any(|c| self.has_visible_inline_text(&c))
     }
 
     pub(super) fn block(&self, node: NodeR<'_>, out: &mut Vec<Block>) {
@@ -132,6 +160,10 @@ impl Renderer<'_> {
                         text: format!("**{text}**"),
                     });
                 }
+            }
+            "figure" => Self::with_depth(&self.figure_depth, || out.extend(self.blocks_of(node))),
+            "figcaption" => {
+                Self::with_depth(&self.figcaption_depth, || out.extend(self.blocks_of(node)))
             }
             _ => out.extend(self.blocks_of(node)),
         }

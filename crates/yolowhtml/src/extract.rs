@@ -507,7 +507,7 @@ impl Skipper {
             && !declared_body
             && !attachment
             && (self.classes(node, el) & STRICT != 0
-                || crate::article::is_furniture(el, self.features(node)))
+                || crate::article::is_furniture(node, el, self.features(node)))
         {
             Some("article furniture")
         } else {

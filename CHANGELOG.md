@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.1 — 2026-11-16
+
+Fix silent dropping of `<figure>` and `<figcaption>` content in strict article extraction mode while keeping non-content noise filtering intact:
+
+- **Article cleaning & furniture rules (`article.rs`, `extract.rs`, `features.rs`)**:
+  - Removed `Tag::Figure` from `is_cleaned_tag()` and removed the unconditional `Tag::Figcaption => true` rule from `is_furniture()`, so legitimate figures and captions are no longer dropped solely by tag type.
+  - Separated `caption` (`CAPTION`) and `attachment` (`ATTACHMENT`) class features from general `DISCARD` furniture so `<figure>` / `<figcaption>` elements carrying classes such as `wp-caption`, `wp-element-caption`, `figure-caption`, or `attachment` survive while `caption`-classed UI chrome outside `<figure>`/`<figcaption>` (and noise classes such as `ad`, `related`, `recommended`, `sponsored`, `sidebar`, `nav`, or hidden attributes on `<figure>`/`<figcaption>`) continue to be filtered.
+- **Markdown whitelist & block rendering (`markdown/mod.rs`, `markdown/block.rs`)**:
+  - Added `Tag::Figure` and `Tag::Figcaption` to `allows_paragraph()`, keeping direct images, direct text, inline formatting, links, formulas, code blocks, tables, blockquotes, and nested lists inside figures and captions.
+  - Allowed `<div>` wrappers inside `<figcaption>` and rescued standalone non-text image/math inline wrappers inside `<figure>` under strict whitelisting without leaking stray `<div>` chrome.
+- **Prose counting & arbitration consistency (`article.rs`)**:
+  - Unified `article::prose()` with `markdown::allows_paragraph()` (including `editorial_attachment` and disclosure headers), ensuring candidate scoring, strict-share checks, and rendered Markdown stay aligned.
+
 ## 0.1.0 — 2026-11-12
 
 Initial standalone MIT release extracted from PageSift (`pagesift-html` and `pagesift-content`):

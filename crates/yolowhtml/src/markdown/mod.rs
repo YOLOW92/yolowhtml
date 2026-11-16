@@ -38,6 +38,10 @@ pub(crate) struct Renderer<'a> {
     flat: bool,
     /// 当前所在的列表、引用的层数。超过 [`MAX_NEST`] 后不再继续缩进或加 `>`。
     nest: Cell<usize>,
+    /// 当前处于 `<figure>` 子树深度（用于保留被 `div` 包裹的图片与行内公式）。
+    figure_depth: Cell<usize>,
+    /// 当前处于 `<figcaption>` 子树深度（图注内允许 `div` 包裹的说明文本）。
+    figcaption_depth: Cell<usize>,
 }
 
 /// 列表、引用缩进的最深层数。每层都把子树的每一行再缩进一次，几百层嵌套（解析器的栈深上限
@@ -65,6 +69,8 @@ impl<'a> Renderer<'a> {
             keep_data_images: false,
             flat: false,
             nest: Cell::new(0),
+            figure_depth: Cell::new(0),
+            figcaption_depth: Cell::new(0),
         }
     }
 
@@ -77,6 +83,8 @@ impl<'a> Renderer<'a> {
             keep_data_images: self.keep_data_images,
             flat: true,
             nest: Cell::new(self.nest.get()),
+            figure_depth: Cell::new(self.figure_depth.get()),
+            figcaption_depth: Cell::new(self.figcaption_depth.get()),
         }
     }
 
@@ -87,6 +95,22 @@ impl<'a> Renderer<'a> {
         let r = f();
         self.nest.set(depth);
         (r, depth < MAX_NEST)
+    }
+
+    fn with_depth<T>(cell: &Cell<usize>, f: impl FnOnce() -> T) -> T {
+        let depth = cell.get();
+        cell.set(depth + 1);
+        let r = f();
+        cell.set(depth);
+        r
+    }
+
+    pub(super) fn in_figure(&self) -> bool {
+        self.figure_depth.get() > 0
+    }
+
+    pub(super) fn in_figcaption(&self) -> bool {
+        self.figcaption_depth.get() > 0
     }
 
     pub(crate) fn whitelist(mut self, w: Whitelist) -> Self {
@@ -101,27 +125,52 @@ impl<'a> Renderer<'a> {
 
     /// `node` 里直接写的行内文字能不能成为一个段落。
     fn paragraph_allowed(&self, node: &NodeR<'_>) -> bool {
-        match self.whitelist {
-            Whitelist::Off => true,
-            Whitelist::On { .. } if self.skipper.editorial_attachment(node) => true,
-            Whitelist::On { div } => match node.tag() {
-                Some(
-                    Tag::P
-                    | Tag::Blockquote
-                    | Tag::Li
-                    | Tag::Dd
-                    | Tag::Dt
-                    | Tag::Td
-                    | Tag::Th
-                    | Tag::Pre
-                    | Tag::Code,
-                ) => true,
-                Some(Tag::Div) => div || crate::dom::is_heading(node),
-                Some(Tag::Button) => crate::extract::is_disclosure_header(node),
-                _ => false,
-            },
-        }
+        allows_paragraph(node, self.skipper, self.whitelist, self.in_figcaption())
     }
+}
+
+/// 白名单模式下，`node` 里的直接行内内容是否允许渲染为段落（和 `article::prose` 共用同一口径）。
+pub(crate) fn allows_paragraph(
+    node: &NodeR<'_>,
+    skipper: &Skipper,
+    whitelist: Whitelist,
+    in_figcaption: bool,
+) -> bool {
+    match whitelist {
+        Whitelist::Off => true,
+        Whitelist::On { .. } if skipper.editorial_attachment(node) => true,
+        Whitelist::On { div } => match node.tag() {
+            Some(
+                Tag::P
+                | Tag::Blockquote
+                | Tag::Li
+                | Tag::Dd
+                | Tag::Dt
+                | Tag::Td
+                | Tag::Th
+                | Tag::Pre
+                | Tag::Code
+                | Tag::Figure
+                | Tag::Figcaption,
+            ) => true,
+            Some(Tag::Div) => div || in_figcaption || crate::dom::is_heading(node),
+            Some(Tag::Button) => crate::extract::is_disclosure_header(node),
+            _ => false,
+        },
+    }
+}
+
+/// 供 `article::prose` 使用的容器放行判断（包含渲染器总是保留的小标题标签 `h1`–`h6`）。
+pub(crate) fn allows_prose_container(
+    node: &NodeR<'_>,
+    skipper: &Skipper,
+    whitelist: Whitelist,
+    in_figcaption: bool,
+) -> bool {
+    matches!(
+        node.tag(),
+        Some(Tag::H1 | Tag::H2 | Tag::H3 | Tag::H4 | Tag::H5 | Tag::H6)
+    ) || allows_paragraph(node, skipper, whitelist, in_figcaption)
 }
 
 pub(crate) fn is_block_tag(tag: Tag) -> bool {

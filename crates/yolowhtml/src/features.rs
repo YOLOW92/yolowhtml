@@ -26,6 +26,10 @@ pub(crate) const POS_ID: u32 = 1 << 8;
 pub(crate) const NEG_ID: u32 = 1 << 9;
 /// 评论区（comment / comments / disqus，不含 commentary）。
 pub(crate) const COMMENTS: u32 = 1 << 10;
+/// 图注类名（`caption`）：正文普通区域里按家具裁剪，`<figure>` / `<figcaption>` 内保留。
+pub(crate) const CAPTION: u32 = 1 << 11;
+/// 附件类名（`attachment`）：侧栏/列表附件裁剪，`<figure>` / `<figcaption>` 自身保留。
+pub(crate) const ATTACHMENT: u32 = 1 << 12;
 
 /// 字面量在属性值里要满足的位置条件。
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -151,7 +155,7 @@ static RULES: &[Rule] = &[
     r("content-body", Any, Class, T2),
     r("content__body", Any, Class, T2),
     r("page-content", Any, Class, T2),
-    // 非正文标记（trafilatura OVERALL_DISCARD_XPATH、TEASER、评论、图注）
+    // 非正文标记（trafilatura OVERALL_DISCARD_XPATH、TEASER、评论）
     r("shar", Start, Both, DISCARD),
     r("social", Any, Both, DISCARD),
     r("viral", Any, Both, DISCARD),
@@ -208,7 +212,7 @@ static RULES: &[Rule] = &[
     r("more-on", Any, Class, DISCARD),
     r("meta", Any, Class, DISCARD),
     r("rating", Any, Class, DISCARD),
-    r("attachment", Any, Class, DISCARD),
+    r("attachment", Any, Class, ATTACHMENT),
     r("timestamp", Any, Class, DISCARD),
     r("user-info", Any, Class, DISCARD),
     r("user-profile", Any, Class, DISCARD),
@@ -220,7 +224,7 @@ static RULES: &[Rule] = &[
     r("article-comments", Any, Class, DISCARD),
     r("post-comments", Any, Class, DISCARD),
     r("comments-title", Any, Class, DISCARD),
-    r("caption", Any, Class, DISCARD),
+    r("caption", Any, Class, CAPTION),
     // 评论区
     r("comment", NotA, Both, COMMENTS),
     r("disqus", Any, Both, COMMENTS),

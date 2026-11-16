@@ -45,13 +45,17 @@ fn article_mode_keeps_the_story_and_drops_comments_and_related() {
     let out = md(&news_page(ARTICLE_LD, &format!("{COMMENTS}{RELATED}")));
     assert!(out.contains("# Council approves budget"), "{out}");
     assert!(out.contains("The budget takes effect in January"), "{out}");
+    assert!(out.contains("![](/a.jpg)"), "{out}");
+    assert!(
+        out.contains("The council chamber on Tuesday."),
+        "legitimate figcaption should be kept:\n{out}"
+    );
     for gone in [
         "terrible decision",
         "Finally some investment",
         "cycling lanes",
         "Share on Facebook",
         "By Jane Doe",
-        "council chamber",
     ] {
         assert!(!out.contains(gone), "{gone:?} should be removed:\n{out}");
     }
