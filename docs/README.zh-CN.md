@@ -26,6 +26,7 @@
 - **`yolowhtml`（主包 — HTML 转 Markdown 与正文提取引擎）**：基于 `yolowhtml-dom` 构建的一站式入口（`process(html, &opts)`）。负责网页正文提取、GFM Markdown 渲染（600 篇生成文档 15 个结构类别平均 F1 达 **`1.000`**）、KaTeX / MathJax / MathML → LaTeX 公式还原、20 种语言单趟发布日期识别（htmldate 1,000 页留出集 F1 **`0.945`**，单页仅 **`0.31 ms`**）、JSON-LD / OpenGraph 元数据提取、付费墙/验证码拦截页识别（`Barrier`）、完整度诊断警告（`Coverage`）及工作线程 Arena 复用（`ProcessWorkspace`）。
 - **`yolowhtml-dom`（底座包 — 零拷贝 Arena HTML5 DOM 与 CSS 选择器）**：将 HTML 解析为连续内存的 `Vec<Node>` Arena 树（以 `u32` `NodeId` 索引），实现影响正文结构的 HTML5 建树规则（隐式标签、自动闭合、表格 foster parenting、SVG/MathML 外部命名空间、片段解析与 `scripting=false` 模式）、完整 HTML5 命名字符实体解码，以及 CSS 选择器引擎（`Selector::parse`、`:nth-child`、`:not`）。同时也通过 `yolowhtml::yolowhtml_dom` 直接重导出。
 - **100% 安全 Rust**：`yolowhtml` 与 `yolowhtml-dom` 均强制开启 `#![forbid(unsafe_code)]`。
+- **输入有上限**：超过 `yolowhtml_dom::MAX_INPUT_LEN`（1 GiB）的输入在字符边界截断，不会被读错；`Html::is_truncated()` 和 Coverage 的 `input_truncated` 警告会报告截断。
 - **`yolow*` 开源组件家族**：与 [`yolow64`](https://github.com/YOLOW92/yolow64)、[`yolowpdf`](https://github.com/YOLOW92/yolowpdf) 一起作为核心依赖驱动 [PageSift](https://github.com/YOLOW92/pagesift) `1.2.7+`。
 
 ## 背后的故事（Story）

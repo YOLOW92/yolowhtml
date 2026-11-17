@@ -30,7 +30,7 @@ fn main() {
         std::fs::write(format!("{out}/{name}.md"), doc.markdown).unwrap();
     }
     println!(
-        "pagesift: {:.2} ms/page",
+        "yolowhtml: {:.2} ms/page",
         total * 1000.0 / files.len() as f64
     );
 }

@@ -38,7 +38,8 @@ pub(crate) fn is_non_content_tag(tag: Tag) -> bool {
     )
 }
 
-/// 显式隐藏的元素：`hidden`、内联样式 `display:none`，以及文字很少的 `visibility:hidden`。
+/// 显式隐藏的元素：`hidden`（`until-found` 除外）、内联样式 `display:none`，以及文字很少的
+/// `visibility:hidden`。
 /// `aria-hidden="true"` 只让读屏软件跳过，浏览器照样显示，所以只对文字很少的元素生效
 /// （图标字体如 `arrow_forward`、装饰性短标签）；网站打开弹窗时常把整个页面框架标成
 /// aria-hidden，那种大块内容保留，否则整页正文会被删光。
@@ -50,7 +51,9 @@ pub(crate) fn is_hidden(node: &NodeR<'_>) -> bool {
     let (mut aria, mut style, mut cloaked) = (None, None, false);
     for (name, value) in el.attrs() {
         match name {
-            "hidden" => return true,
+            // HTML 标准 §6.1：`hidden="until-found"` 是"折叠但可被查找"的状态，内容会被页内查找和
+            // 片段导航展开，属于正文；其余取值（含空值、无效值）都是"hidden"状态，不呈现
+            "hidden" if !value.eq_ignore_ascii_case("until-found") => return true,
             "aria-hidden" => {
                 aria.get_or_insert(value);
             }

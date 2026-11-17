@@ -1,5 +1,5 @@
 //! 按 Mozilla Readability（Apache-2.0，https://github.com/mozilla/readability）的打分思路找正文容器，
-//! 在 pagesift 的 DOM 和预先算好的文字统计上重新实现：一次遍历给段落打分并分给祖先，
+//! 在 yolowhtml-dom 的 DOM 和预先算好的文字统计上重新实现：一次遍历给段落打分并分给祖先，
 //! 不改动 DOM，不重复计算文字长度。
 //!
 //! 打分：每个够长的段落（`p`、`td`、`pre`、没有块级子元素的 `div`、`section`、`h2`–`h6`）得
@@ -23,6 +23,9 @@ const MIN_ALTERNATIVES: usize = 3;
 pub(crate) fn content_nodes<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<Vec<NodeR<'a>>> {
     let body = dom.body();
     let mut scores: HashMap<NodeId, f64> = HashMap::new();
+    // 每个节点子树的可见逗号数，按需算一次记住：计分的段落互相嵌套时（层层 `<section>`），
+    // 逐个从头数子树会把同一段文字按嵌套深度重复数很多遍
+    let mut commas = vec![UNCOUNTED; dom.len()];
     let init = |n: &NodeR<'_>| -> f64 {
         let base = match n.tag() {
             Some(Tag::Div) => 5.0,
@@ -73,7 +76,7 @@ pub(crate) fn content_nodes<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<
         if chars < MIN_PARAGRAPH_CHARS {
             continue;
         }
-        let commas = visible_commas(&node, skipper);
+        let commas = visible_commas(&node, skipper, &mut commas);
         let score = 1.0 + (commas + 1) as f64 + (chars / 100).min(3) as f64;
         for (level, a) in node
             .ancestors()
@@ -245,20 +248,38 @@ fn skipped(n: &NodeR<'_>, skipper: &Skipper) -> bool {
     skipper.skip(n) || n.ancestors().any(|a| a.is_element() && skipper.skip(&a))
 }
 
+const UNCOUNTED: u32 = u32::MAX;
+
 /// 可见文字里的逗号（脚本、样式、隐藏元素里的不算：播放器配置里全是逗号）。
-fn visible_commas(n: &NodeR<'_>, skipper: &Skipper) -> usize {
+/// `memo` 按节点下标记住每个子树的结果（[`UNCOUNTED`] 表示还没算），整页总共只数一遍。
+fn visible_commas(n: &NodeR<'_>, skipper: &Skipper, memo: &mut [u32]) -> usize {
+    let slot = n.id().index();
+    if memo[slot] != UNCOUNTED {
+        return memo[slot] as usize;
+    }
     let mut total = 0;
     for c in n.children() {
         if let Some(t) = c.as_text() {
-            total += t
-                .chars()
-                .filter(|c| matches!(c, ',' | '，' | '、' | '،' | '﹐'))
-                .count();
+            total += commas_in(t);
         } else if c.is_element() && !skipper.skip(&c) {
-            total += visible_commas(&c, skipper);
+            total += visible_commas(&c, skipper, memo);
         }
     }
+    memo[slot] = total.min(UNCOUNTED as usize - 1) as u32;
     total
+}
+
+/// 一段文字里的逗号数（含全角、顿号、阿拉伯文和小写逗号）。ASCII 逗号按字节数，
+/// 只有含非 ASCII 字节的文字才逐字符解码找其余几种。
+fn commas_in(t: &str) -> usize {
+    let ascii = t.bytes().filter(|&b| b == b',').count();
+    if t.is_ascii() {
+        return ascii;
+    }
+    ascii
+        + t.chars()
+            .filter(|c| matches!(c, '，' | '、' | '،' | '﹐'))
+            .count()
 }
 
 fn ends_sentence(n: &NodeR<'_>) -> bool {

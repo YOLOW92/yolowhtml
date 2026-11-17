@@ -8,6 +8,14 @@ pub(crate) const NONE: u32 = u32::MAX;
 /// [`Span`] 起点的最高位：为 1 时指向解码缓冲区，否则指向源字符串。
 const OWNED: u32 = 1 << 31;
 
+/// 解析的输入长度上限（字节，按去掉 BOM、换行和 NUL 规范化之后算）：1 GiB。
+///
+/// 位置用 31 位记录，超出的部分会被读成别的文字，所以超过上限时只解析前面这些（截在字符边界上），
+/// [`Html::is_truncated`] 为 `true`。留出一半余量给解码缓冲区：字符引用解码、文字合并都可能写得比源多。
+pub const MAX_INPUT_LEN: usize = 1 << 30;
+/// 解码缓冲区的长度上限：起点不能碰到标记位。超出的写入被丢弃，同样记为截断。
+pub(crate) const MAX_BUF_LEN: usize = OWNED as usize - 1;
+
 /// 一段字符串：源 HTML 里的一段，或者解码缓冲区里的一段（含字符引用、需要改写的内容）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) struct Span {
@@ -17,6 +25,7 @@ pub(crate) struct Span {
 
 impl Span {
     pub(crate) fn source(start: usize, end: usize) -> Span {
+        debug_assert!(end <= MAX_BUF_LEN, "源位置越过 31 位：{end}");
         Span {
             start: start as u32,
             len: (end - start) as u32,
@@ -24,6 +33,7 @@ impl Span {
     }
 
     pub(crate) fn owned(start: usize, end: usize) -> Span {
+        debug_assert!(end <= MAX_BUF_LEN, "缓冲区位置越过 31 位：{end}");
         Span {
             start: start as u32 | OWNED,
             len: (end - start) as u32,
@@ -114,6 +124,8 @@ pub struct Html<'s> {
     pub(crate) buf: String,
     pub(crate) nodes: Vec<Node>,
     pub(crate) attrs: Vec<Attr>,
+    /// 输入超过 [`MAX_INPUT_LEN`]、或解码后的文字装不下，有内容没有解析。
+    pub(crate) truncated: bool,
 }
 
 /// Reusable allocation storage for parsing consecutive documents on one
@@ -191,6 +203,11 @@ impl<'s> Html<'s> {
     /// 文档根节点（不是 `<html>` 元素，是它的父节点）。
     pub fn root(&self) -> NodeRef<'_> {
         NodeRef { doc: self, id: 0 }
+    }
+
+    /// 输入太大，有一部分内容被丢弃（见 [`MAX_INPUT_LEN`]）。为 `false` 时整份输入都解析了。
+    pub fn is_truncated(&self) -> bool {
+        self.truncated
     }
 
     /// 节点总数。节点 id 的范围是 `0..len()`，可以用来开按节点下标索引的数组。

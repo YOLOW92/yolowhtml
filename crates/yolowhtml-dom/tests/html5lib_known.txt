@@ -4,5 +4,5 @@ scripted_foster01.dat#0	需要执行脚本（document.write / DOM 操作），�
 scripted_foster01.dat#1	需要执行脚本（document.write / DOM 操作），解析器不执行脚本
 scripted_webkit01.dat#0	需要执行脚本（document.write / DOM 操作），解析器不执行脚本
 scripted_webkit01.dat#1	需要执行脚本（document.write / DOM 操作），解析器不执行脚本
-tables01.dat#17	依赖插入模式的极端嵌套：pagesift 按当前节点推断表格上下文，规范在这里仍处于 in row / in table 插入模式
-tricky01.dat#7	依赖插入模式的极端嵌套：pagesift 按当前节点推断表格上下文，规范在这里仍处于 in row / in table 插入模式
+tables01.dat#17	依赖插入模式的极端嵌套：yolowhtml-dom 按当前节点推断表格上下文，规范在这里仍处于 in row / in table 插入模式
+tricky01.dat#7	依赖插入模式的极端嵌套：yolowhtml-dom 按当前节点推断表格上下文，规范在这里仍处于 in row / in table 插入模式

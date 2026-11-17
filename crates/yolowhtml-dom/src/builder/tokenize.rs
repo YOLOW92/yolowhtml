@@ -433,7 +433,7 @@ impl<'a> Builder<'a> {
         if decode && memchr::memchr(b'&', raw.as_bytes()).is_some() {
             let start = self.buf.len();
             decode_into(&mut self.buf, raw, false);
-            Span::owned(start, self.buf.len())
+            self.owned_span(start)
         } else {
             Span::source(s, e)
         }

@@ -1,5 +1,5 @@
 //! 完整度诊断：逐页写出正文、整页（不只取正文）的 Markdown 和完整度警告（[`yolowhtml::Coverage::warnings`]），
-//! 给警告校准（tasks/0.80/c）离线分析用。
+//! 给警告校准离线分析用。
 //! `cargo run --release -p yolowhtml --example coverage_probe -- <manifest.jsonl> <out.jsonl>`
 use std::io::Write;
 

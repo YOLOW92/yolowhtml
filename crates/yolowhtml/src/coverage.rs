@@ -1,12 +1,12 @@
 //! 正文完整度：结果可能只有正文的一部分时说出来（只给警告，不改提取结果）。
 //!
-//! 两种"悄悄丢正文"在 WCXB 开发集上能从页面自身的数字里看出来（tasks/0.80/c/RESULT.md）：
+//! 两种"悄悄丢正文"在 WCXB 开发集上能从页面自身的数字里看出来：
 //! - 文章模式选错了区域：输出远少于默认规则下页面上评论区以外的非链接文字；
 //! - 讨论串只取到一帖：选中的主体本身在评论（回复）区里，同一区域的其余文字比输出多得多。
 //!
 //! 第三种只说事实、不说正文丢了：主体不在评论区，但页面上评论/回复区的文字比输出多得多
 //! （论坛帖子页的回复、长评论串）。评论区默认不当正文，有的场景（论坛）它就是要的内容，
-//! 调用方看到警告可以改用整页模式（tasks/0.80/fix2/RESULT.md）。
+//! 调用方看到警告可以改用整页模式。
 //!
 //! 页面整体文字不够多时一次额外遍历都不做，大多数页面只多数一遍 Markdown。
 
@@ -37,6 +37,8 @@ pub struct Coverage {
     root_in_comments: bool,
     /// 整页（默认规则下）不在链接里的可见文字数，每页都算。
     page_chars: usize,
+    /// 输入超过解析上限（[`yolowhtml_dom::MAX_INPUT_LEN`]），只处理了前面的部分。
+    pub(crate) input_truncated: bool,
 }
 
 impl Coverage {
@@ -65,9 +67,21 @@ impl Coverage {
         self.root_in_comments
     }
 
-    /// 结果可能不完整时的警告：`partial_content`、`replies_omitted`、`comments_omitted`。
+    /// 输入超过解析上限（[`yolowhtml_dom::MAX_INPUT_LEN`]），超出的部分没有处理。
+    pub fn input_truncated(&self) -> bool {
+        self.input_truncated
+    }
+
+    /// 结果可能不完整时的警告：`input_truncated`、`partial_content`、`replies_omitted`、
+    /// `comments_omitted`。
     pub fn warnings(&self) -> Vec<String> {
         let mut out = Vec::new();
+        if self.input_truncated {
+            out.push(format!(
+                "input_truncated: the HTML is larger than the {} MiB parser limit; only the beginning was processed",
+                yolowhtml_dom::MAX_INPUT_LEN >> 20
+            ));
+        }
         let got = self.out_chars;
         if let Some(main) = self.main_chars
             && (got as f64) < main as f64 * PARTIAL_MAX_SHARE
@@ -165,7 +179,7 @@ fn default_prose(node: &NodeR<'_>, skipper: &Skipper) -> (usize, usize) {
         for c in n.children() {
             if let Some(t) = c.as_text() {
                 if !in_link {
-                    let k = crate::dom::count_non_whitespace(t);
+                    let k = skipper.text_chars(&c, t);
                     if comments {
                         acc.1 += k;
                     } else {
@@ -181,4 +195,28 @@ fn default_prose(node: &NodeR<'_>, skipper: &Skipper) -> (usize, usize) {
     let mut acc = (0, 0);
     walk(node, skipper, false, false, &mut acc);
     acc
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn truncated_input_is_reported_first() {
+        let cov = Coverage {
+            input_truncated: true,
+            ..Default::default()
+        };
+        assert!(cov.input_truncated());
+        let w = cov.warnings();
+        assert_eq!(w.len(), 1);
+        assert!(w[0].starts_with("input_truncated:"), "{w:?}");
+    }
+
+    #[test]
+    fn whole_input_gives_no_truncation_warning() {
+        let cov = Coverage::default();
+        assert!(!cov.input_truncated());
+        assert!(cov.warnings().is_empty());
+    }
 }

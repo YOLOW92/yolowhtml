@@ -143,7 +143,8 @@ impl Renderer<'_> {
                     });
                 }
             }
-            "ul" | "ol" => {
+            // `<menu>` 在语义上就是 `<ul>`（HTML 标准 §4.4.7），`<dir>` 是它的废弃写法，呈现相同
+            "ul" | "ol" | "menu" | "dir" => {
                 if let Some(b) = self.list(node, name == "ol") {
                     out.push(b);
                 }
@@ -337,6 +338,19 @@ impl Renderer<'_> {
             }
             s
         };
+        // `<caption>` 是表格的标题（HTML 标准 §4.9.2），GFM 表格没有标题行，放在表格前面一段
+        if let Some(caption) = node
+            .children()
+            .find(|c| tag(c) == Some("caption") && !self.skip(c))
+        {
+            let text = single_line(&join_blocks(&self.as_flat().blocks_of(caption)));
+            if !text.is_empty() {
+                out.push(Block {
+                    kind: Kind::Para,
+                    text,
+                });
+            }
+        }
         let mut lines = vec![fmt_row(&cells[0])];
         lines.push(format!("|{}", " --- |".repeat(cols)));
         lines.extend(cells[1..].iter().map(fmt_row));

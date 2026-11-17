@@ -67,6 +67,19 @@ impl Renderer<'_> {
                 out.push_str(&inline_code(&collapse_whitespace(&raw_text(&node))))
             }
             Tag::A => out.push_str(&self.link(node, el)),
+            // `<q>` 的引号由呈现层加（HTML 标准 §15.3.4 的 `quotes`），作者不写；去掉标签时补上。
+            // 外层用双引号、里层用单引号，和英文默认的引号层级一致
+            Tag::Q => {
+                let depth = node.ancestors().filter(|a| a.tag() == Some(Tag::Q)).count();
+                let (open, close) = if depth % 2 == 0 {
+                    ('“', '”')
+                } else {
+                    ('‘', '’')
+                };
+                out.push(open);
+                self.inline_children_into(node, out);
+                out.push(close);
+            }
             t if is_block_tag(t) => {
                 out.push(' ');
                 self.inline_children_into(node, out);

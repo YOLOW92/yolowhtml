@@ -134,7 +134,8 @@ impl<'a> Builder<'a> {
         if !ws.is_empty() {
             let start = self.buf.len();
             self.buf.push_str(&ws);
-            self.add_text(crate::dom::Span::owned(start, self.buf.len()), false);
+            let span = self.owned_span(start);
+            self.add_text(span, false);
         }
     }
 }

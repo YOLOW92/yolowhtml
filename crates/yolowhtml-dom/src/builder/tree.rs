@@ -140,16 +140,22 @@ impl<'a> Builder<'a> {
         if !a.is_owned() && !b.is_owned() && a.end() == b.offset() {
             return Span::source(a.offset(), b.end());
         }
-        let start = if a.is_owned() && a.end() == self.buf.len() {
+        let before = self.buf.len();
+        let start = if a.is_owned() && a.end() == before {
             a.offset()
         } else {
             let s = self.str(a).to_string();
-            let start = self.buf.len();
             self.buf.push_str(&s);
-            start
+            before
         };
         let s = self.str(b).to_string();
         self.buf.push_str(&s);
+        if self.buf.len() > self.buf_limit {
+            // 装不下就只留前半段 `a`（它原来的位置仍然有效），丢掉后半段
+            self.buf.truncate(before);
+            self.truncated = true;
+            return a;
+        }
         Span::owned(start, self.buf.len())
     }
 
@@ -163,7 +169,7 @@ impl<'a> Builder<'a> {
         for c in raw.chars() {
             self.buf.push(c.to_ascii_lowercase());
         }
-        Span::owned(start, self.buf.len())
+        self.owned_span(start)
     }
 
     pub(super) fn value_span(&mut self, (s, e): (usize, usize)) -> Span {
@@ -173,7 +179,7 @@ impl<'a> Builder<'a> {
         }
         let start = self.buf.len();
         decode_into(&mut self.buf, raw, true);
-        Span::owned(start, self.buf.len())
+        self.owned_span(start)
     }
 
     /// 把分词器暂存的属性写进属性表，同名的只留第一个。

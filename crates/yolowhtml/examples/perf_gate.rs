@@ -1,6 +1,6 @@
 //! 性能回归线：在确定性生成的合成页面上测 `process` 的中位耗时，超过上限就以非零状态退出。
 //! 上限留了 CI 机器波动的余量，用来抓平方级复杂度这类明显退化；
-//! PRD 的性能目标在真实快照上用 `pagesift bench` 考核。
+//! 性能目标在真实快照上用 pagesift 的 `pagesift bench` 考核。
 //! CI 里跑：`cargo run --release -p yolowhtml --example perf_gate`
 
 use std::fmt::Write;

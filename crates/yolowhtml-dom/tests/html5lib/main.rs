@@ -1,15 +1,21 @@
 //! html5lib-tests 树构建用例（现在由 web-platform-tests 维护）逐条对照。
 //!
-//! 数据不进仓库，按 tasks/0.80/b1-b3/RESULT.md 的说明稀疏检出到
-//! `benchmarks/data/wpt-parsing`；也可以用环境变量 `PAGESIFT_HTML5LIB_DIR` 指向放 `.dat` 的目录。
-//! 数据缺失时跳过。
+//! 数据不进仓库（`benchmarks/data/` 已在 .gitignore 里），在仓库根目录稀疏检出 web-platform-tests：
+//!
+//! ```sh
+//! git clone --depth 1 --filter=blob:none --sparse https://github.com/web-platform-tests/wpt benchmarks/data/wpt-parsing
+//! git -C benchmarks/data/wpt-parsing sparse-checkout set html/syntax/parsing/resources
+//! ```
+//!
+//! 也可以用环境变量 `YOLOWHTML_HTML5LIB_DIR` 指向放 `.dat` 的目录。数据缺失时跳过并打印提示，
+//! 要求必须跑到时设 `YOLOWHTML_HTML5LIB_REQUIRE=1`（缺数据就失败）。
 //!
 //! `#document-fragment` 用例用 [`Html::parse_with`] 的片段解析跑（结果取根元素的子节点），
 //! `#script-off` 用例关掉 scripting 跑；两类分开计数。
 //!
 //! 每条用例分成 通过 / 影响正文 / 只差行内结构 / 其他 四类（见 `classify`）。影响正文的差异
 //! 必须写在 `tests/html5lib_known.txt` 里并说明原因，否则测试失败。
-//! `PAGESIFT_HTML5LIB_REPORT=路径` 时把每条没通过的用例（输入、预期、实际）写进报告。
+//! `YOLOWHTML_HTML5LIB_REPORT=路径` 时把每条没通过的用例（输入、预期、实际）写进报告。
 
 mod classify;
 mod dat;
@@ -24,7 +30,7 @@ use classify::Class;
 use yolowhtml_dom::{Html, Namespace, ParseOptions};
 
 fn data_dir() -> Option<PathBuf> {
-    let dir = match std::env::var_os("PAGESIFT_HTML5LIB_DIR") {
+    let dir = match std::env::var_os("YOLOWHTML_HTML5LIB_DIR") {
         Some(d) => PathBuf::from(d),
         None => PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../benchmarks/data/wpt-parsing/html/syntax/parsing/resources"),
@@ -46,6 +52,10 @@ fn known() -> BTreeMap<String, String> {
 #[test]
 fn html5lib_tree_construction() {
     let Some(dir) = data_dir() else {
+        assert!(
+            std::env::var_os("YOLOWHTML_HTML5LIB_REQUIRE").is_none(),
+            "YOLOWHTML_HTML5LIB_REQUIRE 已设置，但 html5lib-tests 数据不在（见文件开头的说明）"
+        );
         eprintln!("html5lib-tests 数据不在，跳过（见文件开头的说明）");
         return;
     };
@@ -166,7 +176,7 @@ fn html5lib_tree_construction() {
     for (f, (p, t)) in &per_file {
         println!("  {f}: {p}/{t}");
     }
-    if let Some(out) = std::env::var_os("PAGESIFT_HTML5LIB_REPORT") {
+    if let Some(out) = std::env::var_os("YOLOWHTML_HTML5LIB_REPORT") {
         std::fs::write(out, format!("# {summary}\n\n{report}")).unwrap();
     }
     let stale: Vec<&String> = known

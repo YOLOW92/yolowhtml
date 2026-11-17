@@ -148,6 +148,8 @@ pub(crate) fn allows_paragraph(
                 | Tag::Dt
                 | Tag::Td
                 | Tag::Th
+                // 表格标题（HTML 标准 §4.9.2）和单元格一样是表格内容
+                | Tag::Caption
                 | Tag::Pre
                 | Tag::Code
                 | Tag::Figure
@@ -218,6 +220,8 @@ pub(crate) fn is_block_tag(tag: Tag) -> bool {
             | Thead
             | Tr
             | Ul
+            | Menu
+            | Dir
             | Body
             | Html
     )

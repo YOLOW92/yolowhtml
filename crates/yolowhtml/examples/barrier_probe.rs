@@ -1,4 +1,4 @@
-//! 拦截页识别的离线复测（tasks/0.80/c）：读 `raw_fetch` 存下的页面，按当时的状态码跑一遍
+//! 拦截页识别的离线复测：读 `raw_fetch` 存下的页面，按当时的状态码跑一遍
 //! [`yolowhtml::process`]，写出识别结果和正文开头，便于人工标注和新旧对比。
 //! `barrier_probe <index.jsonl> <out.jsonl>`
 use std::io::Write;

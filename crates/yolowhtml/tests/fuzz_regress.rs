@@ -1,4 +1,4 @@
-//! stable 模糊测试（`pagesift-fuzz markdown`，见 scripts/fuzz.sh）找到的用例。
+//! stable 模糊测试（pagesift 仓库的 `pagesift-fuzz markdown`，见那边的 scripts/fuzz.sh）找到的用例。
 
 use std::time::Duration;
 

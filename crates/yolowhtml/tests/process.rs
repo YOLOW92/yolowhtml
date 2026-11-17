@@ -112,10 +112,10 @@ fn chinese_article_beats_link_heavy_sidebar() {
 #[test]
 fn nested_and_ordered_lists() {
     let html = r#"<article><h2>Steps</h2>
-    <ol start="3"><li>Install</li><li>Configure<ul><li>edit <code>pagesift.toml</code></li><li>set the port</li></ul></li><li>Run</li></ol>
+    <ol start="3"><li>Install</li><li>Configure<ul><li>edit <code>app.toml</code></li><li>set the port</li></ul></li><li>Run</li></ol>
     <p>That is the whole setup process, described in enough words to be the main content of this page.</p></article>"#;
     let m = md(html);
-    let expected = "3. Install\n4. Configure\n   - edit `pagesift.toml`\n   - set the port\n5. Run";
+    let expected = "3. Install\n4. Configure\n   - edit `app.toml`\n   - set the port\n5. Run";
     assert!(m.contains(expected), "{m}");
 }
 
@@ -137,10 +137,10 @@ fn fenced_code_with_language_and_backticks() {
 fn data_table_becomes_gfm() {
     let html = r#"<article><p>Benchmark results are summarised in the table below for all three engines.</p>
     <table><thead><tr><th>Engine</th><th>Recall</th></tr></thead>
-    <tbody><tr><td>pagesift</td><td>n/a</td></tr><tr><td>a | b</td><td>1</td></tr></tbody></table></article>"#;
+    <tbody><tr><td>engine-a</td><td>n/a</td></tr><tr><td>a | b</td><td>1</td></tr></tbody></table></article>"#;
     let m = md(html);
     assert!(
-        m.contains("| Engine | Recall |\n| --- | --- |\n| pagesift | n/a |\n| a \\| b | 1 |"),
+        m.contains("| Engine | Recall |\n| --- | --- |\n| engine-a | n/a |\n| a \\| b | 1 |"),
         "{m}"
     );
 }

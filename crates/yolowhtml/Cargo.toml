@@ -10,7 +10,7 @@ rust-version.workspace = true
 [dependencies]
 aho-corasick = "1.1.5"
 memchr = "2.8.3"
-yolowhtml-dom = { version = "0.1.0", path = "../yolowhtml-dom" }
+yolowhtml-dom = { version = "0.1.2", path = "../yolowhtml-dom" }
 regex = "1.13.1"
 serde_json = "1.0.154"
 blake3 = { version = "1.8.7", features = ["pure"] }
@@ -19,5 +19,7 @@ url = "2.5.8"
 
 [dev-dependencies]
 yolowhtml-testkit = { path = "../yolowhtml-testkit" }
+# 测试统计建树次数和解析字节数（tests/noscript_cost.rs）
+yolowhtml-dom = { version = "0.1.2", path = "../yolowhtml-dom", features = ["count-builds"] }
 # 性能示例和发布的可执行程序用同一个全局分配器
 yolowhtml-sys = { path = "../yolowhtml-sys" }

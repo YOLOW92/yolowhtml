@@ -122,3 +122,28 @@ fn full_page_mode_never_reports() {
     };
     assert!(process(&html, &opts).coverage.warnings().is_empty());
 }
+
+/// 超过解析上限的输入：只处理前面的部分，并在 `Coverage` 里说出来。要分配约 1 GiB，默认不跑：
+/// `cargo test --profile quick -p yolowhtml --test coverage -- --ignored`
+#[test]
+#[ignore = "分配约 1 GiB"]
+fn oversized_input_is_reported_as_truncated() {
+    let head = "<html><body><main><h1>Big page</h1><p>Kept paragraph.</p><!--";
+    let tail = "--><p>Dropped paragraph.</p></main></body></html>";
+    let mut html = String::with_capacity(yolowhtml::yolowhtml_dom::MAX_INPUT_LEN + 1024);
+    html.push_str(head);
+    html.extend(std::iter::repeat_n(
+        'x',
+        yolowhtml::yolowhtml_dom::MAX_INPUT_LEN - head.len(),
+    ));
+    html.push_str(tail);
+    let doc = yolowhtml::process(&html, &yolowhtml::Options::default());
+    assert!(doc.coverage.input_truncated());
+    assert!(
+        doc.coverage.warnings()[0].starts_with("input_truncated:"),
+        "{:?}",
+        doc.coverage.warnings()
+    );
+    assert!(doc.markdown.contains("Kept paragraph."));
+    assert!(!doc.markdown.contains("Dropped paragraph."));
+}

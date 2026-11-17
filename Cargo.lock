@@ -448,7 +448,7 @@ dependencies = [
 
 [[package]]
 name = "yolowhtml"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "aho-corasick",
  "blake3",
@@ -464,7 +464,7 @@ dependencies = [
 
 [[package]]
 name = "yolowhtml-dom"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "memchr",
  "yolowhtml-testkit",
@@ -472,14 +472,14 @@ dependencies = [
 
 [[package]]
 name = "yolowhtml-sys"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "libc",
 ]
 
 [[package]]
 name = "yolowhtml-testkit"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "libc",
 ]

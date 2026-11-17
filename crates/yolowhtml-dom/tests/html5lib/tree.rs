@@ -1,5 +1,5 @@
 //! 两边都转成同一种树再比较：预期结果从 `#document` 的缩进文本读出来，
-//! pagesift 的结果从 [`Html`] 转过来。
+//! yolowhtml-dom 的结果从 [`Html`] 转过来。
 
 use yolowhtml_dom::{Html, Namespace, NodeRef};
 
@@ -26,7 +26,7 @@ pub struct Node {
 // ---------------------------------------------------------------- 预期结果
 
 /// 读 `#document` 段。`<template>` 的 `content` 层去掉，内容直接作为 template 的子节点
-/// （pagesift 不建独立的文档片段，见 builder 模块说明）。
+/// （yolowhtml-dom 不建独立的文档片段，见 builder 模块说明）。
 pub fn parse_expected(dump: &str) -> Vec<Node> {
     // 先把多行文本、属性值拼回一行一个条目
     let mut items: Vec<(usize, String)> = Vec::new();
@@ -139,7 +139,7 @@ fn sort_attrs(nodes: &mut [Node]) {
     }
 }
 
-// ---------------------------------------------------------------- pagesift 的结果
+// ---------------------------------------------------------------- yolowhtml-dom 的结果
 
 /// 命名空间取 DOM 里记录的（解析器按规范定下的）。SVG 元素名、属性名的大小写和
 /// xlink/xml/xmlns 前缀按规范的对照表修正（解析器存小写名）。

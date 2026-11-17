@@ -28,12 +28,15 @@ mod serialize;
 mod tag;
 
 pub use dom::{
-    Ancestors, Children, Descendants, Element, Html, Namespace, NodeId, NodeRef, ParseOptions,
-    ParseScratch,
+    Ancestors, Children, Descendants, Element, Html, MAX_INPUT_LEN, Namespace, NodeId, NodeRef,
+    ParseOptions, ParseScratch,
 };
 pub use select::{Select, Selector, SelectorError};
 pub use tag::Tag;
 
+/// 建树累计解析的输入字节数，只在 `count-builds` feature 下存在（测试用）。
+#[cfg(feature = "count-builds")]
+pub use builder::BUILD_BYTES as DOM_BUILD_BYTES;
 /// 建树次数计数器，只在 `count-builds` feature 下存在（测试用）。
 #[cfg(feature = "count-builds")]
 pub use builder::BUILDS as DOM_BUILDS;

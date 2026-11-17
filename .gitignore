@@ -9,3 +9,5 @@
 /benchmarks/results/**/olmocr-scans/**/**.md
 /benchmarks/results/**/pdfjs/**/**.md
 /benchmarks/__pycache__/
+__pycache__/
+

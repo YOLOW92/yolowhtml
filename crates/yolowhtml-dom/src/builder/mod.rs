@@ -10,7 +10,10 @@
 use std::borrow::Cow;
 
 use crate::Tag;
-use crate::dom::{Attr, Data, Html, NONE, Namespace, Node, ParseOptions, ParseScratch, Span};
+use crate::dom::{
+    Attr, Data, Html, MAX_BUF_LEN, MAX_INPUT_LEN, NONE, Namespace, Node, ParseOptions,
+    ParseScratch, Span,
+};
 
 /// 打开元素栈的最大深度。更深的元素照样插入但不入栈，树的深度因此有上限，
 /// 递归遍历这棵树的代码不会因为恶意的深层嵌套栈溢出。
@@ -27,16 +30,52 @@ pub(crate) fn parse_with_scratch<'s>(html: &'s str, scratch: &mut ParseScratch) 
 /// 进程内建树的总次数（`count-builds` feature）。
 #[cfg(feature = "count-builds")]
 pub static BUILDS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+/// 进程内建树累计解析的输入字节数（`count-builds` feature）。
+#[cfg(feature = "count-builds")]
+pub static BUILD_BYTES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 pub(crate) fn parse_with_options<'s>(
     html: &'s str,
     scratch: &mut ParseScratch,
     opts: &ParseOptions<'_>,
 ) -> Html<'s> {
+    parse_inner(html, scratch, opts, Limits::default())
+}
+
+/// 源字符串和解码缓冲区的长度上限（单元测试里调小）。
+#[derive(Clone, Copy)]
+struct Limits {
+    input: usize,
+    buf: usize,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Limits {
+            input: MAX_INPUT_LEN,
+            buf: MAX_BUF_LEN,
+        }
+    }
+}
+
+fn parse_inner<'s>(
+    html: &'s str,
+    scratch: &mut ParseScratch,
+    opts: &ParseOptions<'_>,
+    limits: Limits,
+) -> Html<'s> {
     #[cfg(feature = "count-builds")]
-    BUILDS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let (src, nuls) = normalize(html);
-    let (buf, nodes, attrs) = {
+    {
+        BUILDS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        BUILD_BYTES.fetch_add(html.len(), std::sync::atomic::Ordering::Relaxed);
+    }
+    // 先按上限截一次，免得为超大输入做完整的规范化拷贝；规范化可能变长（NUL 换成 3 字节的
+    // U+FFFD），之后再截一次
+    let (html, cut_raw) = clamp_str(html, limits.input);
+    let (src, mut nuls) = normalize(html);
+    let (src, cut_src) = clamp(src, limits.input);
+    nuls.retain(|&at| (at as usize) < src.len());
+    let (buf, nodes, attrs, cut_buf) = {
         let mut tb = Builder::with_buffers(
             &src,
             std::mem::take(&mut scratch.buf),
@@ -44,18 +83,47 @@ pub(crate) fn parse_with_options<'s>(
             std::mem::take(&mut scratch.attrs),
         );
         tb.nuls = nuls;
+        tb.buf_limit = limits.buf;
         tb.scripting = opts.scripting;
         match opts.context {
             Some((ns, name)) => fragment::run(&src, &mut tb, ns, name),
             None => tokenize(&src, &mut tb),
         }
-        (tb.buf, tb.nodes, tb.attrs)
+        (tb.buf, tb.nodes, tb.attrs, tb.truncated)
     };
     Html {
         src,
         buf,
         nodes,
         attrs,
+        truncated: cut_raw || cut_src || cut_buf,
+    }
+}
+
+/// 截到不超过 `limit` 字节的最近字符边界。返回是否截掉了内容。
+fn clamp_str(s: &str, limit: usize) -> (&str, bool) {
+    if s.len() <= limit {
+        return (s, false);
+    }
+    let mut cut = limit;
+    while !s.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    (&s[..cut], true)
+}
+
+fn clamp(src: Cow<'_, str>, limit: usize) -> (Cow<'_, str>, bool) {
+    match src {
+        Cow::Borrowed(s) => {
+            let (s, cut) = clamp_str(s, limit);
+            (Cow::Borrowed(s), cut)
+        }
+        Cow::Owned(mut s) => {
+            let keep = clamp_str(&s, limit).0.len();
+            let cut = keep < s.len();
+            s.truncate(keep);
+            (Cow::Owned(s), cut)
+        }
     }
 }
 
@@ -196,6 +264,10 @@ struct Builder<'a> {
     context_ns: Namespace,
     /// 出栈的下限：片段解析时根元素不出栈。
     floor: usize,
+    /// 解码缓冲区的长度上限（[`MAX_BUF_LEN`]，单元测试里调小）。
+    buf_limit: usize,
+    /// 有内容因为超出缓冲区上限被丢弃，见 [`Builder::owned_span`]。
+    truncated: bool,
 }
 
 fn formatting(tag: Tag) -> bool {
@@ -456,7 +528,20 @@ impl<'a> Builder<'a> {
             context: None,
             context_ns: Namespace::Html,
             floor: 0,
+            buf_limit: MAX_BUF_LEN,
+            truncated: false,
         }
+    }
+
+    /// 把这次写进缓冲区的 `buf[start..]` 收成一段 [`Span`]。超出缓冲区上限时撤回这次写入、
+    /// 返回空段并记下丢了内容：Span 的起点只有 31 位，越界的位置会被读成别的文字。
+    pub(super) fn owned_span(&mut self, start: usize) -> Span {
+        if self.buf.len() > self.buf_limit {
+            self.buf.truncate(start);
+            self.truncated = true;
+            return Span::owned(start, start);
+        }
+        Span::owned(start, self.buf.len())
     }
 
     pub(super) fn str(&self, s: Span) -> &str {
@@ -494,5 +579,86 @@ impl<'a> Builder<'a> {
     pub(super) fn current_is(&self, tag: Tag) -> bool {
         self.current()
             .is_some_and(|o| o.tag == tag && !o.ns.foreign())
+    }
+}
+
+#[cfg(test)]
+mod limit_tests {
+    use super::*;
+
+    fn parse_limited(html: &str, input: usize, buf: usize) -> Html<'_> {
+        let limits = Limits { input, buf };
+        parse_inner(
+            html,
+            &mut ParseScratch::default(),
+            &ParseOptions::default(),
+            limits,
+        )
+    }
+
+    fn texts(dom: &Html<'_>) -> Vec<String> {
+        dom.root()
+            .descendants()
+            .filter(|n| n.tag() == Some(Tag::P))
+            .map(|n| n.text())
+            .collect()
+    }
+
+    #[test]
+    fn normal_input_is_not_truncated() {
+        let dom = Html::parse("<p>a &amp; b</p>");
+        assert!(!dom.is_truncated());
+        assert_eq!(texts(&dom), ["a & b"]);
+    }
+
+    #[test]
+    fn input_past_the_limit_is_cut() {
+        let dom = parse_limited("<p>hello world</p>", 10, MAX_BUF_LEN);
+        assert!(dom.is_truncated());
+        assert_eq!(texts(&dom), ["hello w"]);
+    }
+
+    #[test]
+    fn input_cut_lands_on_a_char_boundary() {
+        // "<p>" 3 字节，"日" 3 字节：上限 5 落在 "日" 中间，退到 3
+        let dom = parse_limited("<p>日本</p>", 5, MAX_BUF_LEN);
+        assert!(dom.is_truncated());
+        assert!(texts(&dom).iter().all(|t| t.is_empty()));
+    }
+
+    #[test]
+    fn input_limit_applies_after_normalization() {
+        // NUL 换成 3 字节的 U+FFFD，规范化后变长；上限按规范化后的长度算
+        let dom = parse_limited("<p>\0\0\0\0</p>", 8, MAX_BUF_LEN);
+        assert!(dom.is_truncated());
+        assert!(dom.src.len() <= 8);
+    }
+
+    #[test]
+    fn decoded_text_past_the_buffer_limit_is_dropped() {
+        // 第一段解码后 3 字节正好装满，第二段装不下：丢弃并报告，第一段不受影响
+        let dom = parse_limited("<p>a&amp;b</p><p>c&amp;d</p>", usize::MAX, 3);
+        assert!(dom.is_truncated());
+        assert_eq!(texts(&dom), ["a&b", ""]);
+    }
+
+    #[test]
+    fn merged_text_past_the_buffer_limit_keeps_the_first_part() {
+        // 多余的结束标签被忽略，前后两段文字合并成一个节点，后半段装不下时保留前半段
+        let dom = parse_limited("<p>a&amp;b</span>cd</p>", usize::MAX, 3);
+        assert!(dom.is_truncated());
+        assert_eq!(texts(&dom), ["a&b"]);
+    }
+
+    #[test]
+    fn attribute_values_past_the_buffer_limit_are_emptied() {
+        let dom = parse_limited(r#"<a href="?a=1&amp;b=2">x</a>"#, usize::MAX, 3);
+        assert!(dom.is_truncated());
+        let a = dom
+            .root()
+            .descendants()
+            .find(|n| n.tag() == Some(Tag::A))
+            .unwrap();
+        assert_eq!(a.as_element().unwrap().attr("href"), Some(""));
     }
 }

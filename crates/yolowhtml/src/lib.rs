@@ -1,4 +1,4 @@
-//! pagesift 的内容处理核心：把 HTML 变成干净的 Markdown 和元数据。
+//! yolowhtml 的内容处理核心：把 HTML 变成干净的 Markdown 和元数据。
 //!
 //! ```
 //! let html = "<html><body><nav>Home</nav><article><h1>Hi</h1><p>Hello, world.</p></article></body></html>";
@@ -25,6 +25,7 @@ mod links;
 mod markdown;
 mod math;
 mod metadata;
+mod outline;
 mod readability;
 mod script_links;
 mod tag_filter;
@@ -117,7 +118,7 @@ pub struct ProcessWorkspace {
 }
 
 /// 只取正文的结果文字少于这么多字符、并且不到整页可见文字的这个比例时，放宽规则重试。
-/// 阈值由 `pagesift bench --auto` 扫描确定。
+/// 阈值由 pagesift 的 `pagesift bench --auto` 扫描确定。
 const FALLBACK_MAX_CHARS: usize = 1000;
 const FALLBACK_MAX_SHARE: f64 = 0.2;
 
@@ -165,16 +166,13 @@ pub fn process_with_workspace_then<R>(
 ///
 /// 默认行为是**按结构判断**：只有声明为文章、或结构像文章（见
 /// [`article::looks_like_article`]）的页面才收窄，其余保持整页输出。
-/// 设 `PAGESIFT_FORCE_ARTICLE=1` 可强制全页收窄，用于复现旧实验。
+/// 设 `YOLOWHTML_FORCE_ARTICLE=1` 可强制全页收窄，用于复现旧实验。
 ///
 /// 只读一次：本函数在 `process_dom` 里逐页调用，每次都走 `std::env::var_os`
 /// 会带一把全局锁并扫描 environ，在高吞吐下是可测的开销。
 fn try_article_everywhere() -> bool {
     static CACHED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *CACHED.get_or_init(|| {
-        std::env::var_os("YOLOWHTML_FORCE_ARTICLE").is_some()
-            || std::env::var_os("PAGESIFT_FORCE_ARTICLE").is_some()
-    })
+    *CACHED.get_or_init(|| std::env::var_os("YOLOWHTML_FORCE_ARTICLE").is_some())
 }
 
 fn process_dom(
@@ -248,12 +246,17 @@ fn process_dom(
         None => render_main(&mut skipper, body, base.as_ref(), opts.keep_data_images),
     };
     // 还是几乎为空、页面又有 <noscript>：有的单页应用只在 <noscript> 里给不跑脚本的抓取器留一份内容。
-    // 按 HTML 规范 <noscript> 里是纯文本，拆掉这层标签重新解析整页再抽一次，明显更长才用
-    if text_chars(&markdown) < HIDDEN_FALLBACK_CHARS
+    // 按 HTML 规范 <noscript> 里是纯文本，拆掉这层标签重新解析整页再抽一次，明显更长才用。
+    // 整页重解析代价和页面一样大，而大多数 <noscript> 只是追踪像素、GTM iframe 或"请开启
+    // JavaScript"提示：先估一下 <noscript> 里最多能贡献多少文字，不可能达标就不重解析
+    let chars = text_chars(&markdown);
+    let wanted = HIDDEN_FALLBACK_CHARS.max(3 * chars);
+    if chars < HIDDEN_FALLBACK_CHARS
+        && chars + noscript_chars_bound(dom, opts) >= wanted
         && let Some(unwrapped) = unwrap_noscript(html)
     {
         let alt = process(&unwrapped, opts).markdown;
-        if text_chars(&alt) >= HIDDEN_FALLBACK_CHARS.max(3 * text_chars(&markdown)) {
+        if text_chars(&alt) >= wanted {
             markdown = alt;
         }
     }
@@ -292,7 +295,8 @@ fn process_dom(
     let fingerprints = opts
         .fingerprints
         .then(|| fingerprint::compute(html, &markdown, plain_text.as_deref().unwrap_or_default()));
-    let coverage = coverage::measure(&body, &skipper, &markdown, root_in_comments);
+    let mut coverage = coverage::measure(&body, &skipper, &markdown, root_in_comments);
+    coverage.input_truncated = dom.is_truncated();
     let document = Document {
         coverage,
         html: opts
@@ -351,6 +355,36 @@ fn render_main(
         skipper.relax(before);
     }
     markdown
+}
+
+/// 拆掉 `<noscript>` 后整页结果最多能多出多少文字（按 [`text_chars`] 的口径）的估计。
+///
+/// 开启脚本时 `<noscript>` 的内容在树里是一段原始文本。把所有 `<noscript>` 的内容拼起来单独
+/// 处理一遍（整页模式、不做拦截页识别）：多出来的文字只能来自这里，而单独处理时没有正文定位
+/// 和页面框架规则删减它，结果不少于它在整页里能贡献的部分。这些内容通常只有几百字节，
+/// 比重解析整页便宜得多；没有 `<noscript>` 时返回 0。
+fn noscript_chars_bound(dom: &Html<'_>, opts: &Options) -> usize {
+    let mut inner = String::new();
+    for node in dom.root().descendants() {
+        if node.tag() == Some(yolowhtml_dom::Tag::Noscript) {
+            inner.push_str(&node.text());
+            inner.push('\n');
+        }
+    }
+    if inner.trim().is_empty() {
+        return 0;
+    }
+    let standalone = Options {
+        only_main_content: false,
+        detect_barrier: false,
+        plain_text: false,
+        clean_html: false,
+        links: false,
+        images: false,
+        fingerprints: false,
+        ..opts.clone()
+    };
+    text_chars(&process(&inner, &standalone).markdown)
 }
 
 /// 去掉 `<noscript>` 和 `</noscript>` 这两层标签、保留里面的内容。页面没有 `<noscript>` 时返回 `None`。

@@ -388,7 +388,7 @@ unsafe fn global_alloc(c: usize) -> *mut u8 {
     unsafe { System.alloc(Layout::from_size_align_unchecked(SIZES[c], MAX_ALIGN)) }
 }
 
-/// 小块分配缓存。只应该由 pagesift 自己的可执行程序用作全局分配器（`#[global_allocator]`）；
+/// 小块分配缓存。只应该由 yolowhtml 自己的示例和基准程序用作全局分配器（`#[global_allocator]`）；
 /// Python、Node 绑定跑在别人的进程里，不替宿主换分配器。
 pub struct SmallCache;
 

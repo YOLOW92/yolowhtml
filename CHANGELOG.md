@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2 — 2026-11-18
+
+- **Bounded input (`yolowhtml-dom` & `yolowhtml`)**: Source positions use 31 bits, so text past 2 GiB previously risked silent misreads. Inputs are now bounded at `MAX_INPUT_LEN` (1 GiB, after normalization) on a UTF-8 character boundary, decoded-text writes past the buffer limit are dropped cleanly, and `Html::is_truncated()` reports either case. `yolowhtml` surfaces truncation via `Coverage::input_truncated()` and an `input_truncated` warning.
+- **HTML standard semantics (`yolowhtml`)**: Table `<caption>` elements are rendered as a leading paragraph before the GFM table (and permitted under strict article whitelisting); `hidden="until-found"` sections are kept as findable body content per HTML §6.1; `<q>` restores presentation-layer quotation marks (`“…”`, nested `‘…’`); `<menu>` and `<dir>` render as unordered lists in full-page mode.
+- **Single-pass & article-mode speedups (`yolowhtml`, byte-identical output)**: `Skipper` caches default and strict-mode verdicts separately with a size-independent `IfSmall` state so toggling strict mode or switching candidate roots no longer clears the cache; text-node non-whitespace counts are recorded once during `Skipper` construction; Readability comma counting memoizes subtree totals bottom-up; `<h1>`/`<h2>` lookups in article mode use a lazy preorder interval index (`Outline`) recycled in `ProcessWorkspace` (`perf_gate` blog -19%, wiki -31%; AEB / WCXB / WebMainBench per-page time ratio `0.86` / `0.86` / `0.84`).
+- **Cheaper `<noscript>` fallback (`yolowhtml`)**: Thin pages containing `<noscript>` blocks (GTM iframes, tracking pixels, "enable JavaScript" hints) now evaluate standalone `<noscript>` content length first and only re-parse the full page when unwrapping could reach the fallback threshold (`1.14` → `0.48 ms/page` on a 410 KB app shell with identical output).
+- **Evaluation & conformance tooling**: Added `benchmarks/quality/` (`aeb.py`, `wcxb.py`, `webmain.py`, and paired bootstrap / randomization testing in `compare.py`), unified test/runtime environment variables under `YOLOWHTML_*`, and added `YOLOWHTML_HTML5LIB_REQUIRE=1` to fail instead of skipping when `html5lib-tests` data is absent.
+
 ## 0.1.1 — 2026-11-16
 
 Fix silent dropping of `<figure>` and `<figcaption>` content in strict article extraction mode while keeping non-content noise filtering intact:

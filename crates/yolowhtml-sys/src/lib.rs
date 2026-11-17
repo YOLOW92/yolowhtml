@@ -1,7 +1,7 @@
-//! 进程级调优。整个 pagesift 只有这里有 unsafe：调用 glibc 的 `mallopt`，以及小块分配缓存
+//! 进程级调优。整个 yolowhtml 只有这里有 unsafe：调用 glibc 的 `mallopt`，以及小块分配缓存
 //! （[`SmallCache`]，全局分配器）。
 //!
-//! 只应该由 pagesift 自己的可执行程序调用；Python、Node 绑定跑在别人的进程里，
+//! 只应该由 yolowhtml 自己的示例和基准程序调用；Python、Node 绑定跑在别人的进程里，
 //! 不能替宿主改分配器参数。
 
 #![deny(unsafe_code)]

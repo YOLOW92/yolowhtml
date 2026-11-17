@@ -46,7 +46,13 @@ pub(crate) struct Skipper {
     visible: Vec<Visible>,
     /// 子树里（不含自身）有没有块级元素，按节点下标索引。
     has_block: Vec<bool>,
-    /// 跳过判断的缓存：0 未算，1 不跳过，2 跳过。
+    /// 文字节点的非空白字符数，构造时数一次，后面各遍按下标直接查（[`Self::text_chars`]）；
+    /// 硬跳过子树里的文字和整页模式下不数，记为 [`UNCOUNTED_TEXT`]。
+    text_counts: Vec<u32>,
+    /// 跳过判断的缓存，两种模式各占两位（见 [`Verdict`]）：低两位是默认规则，0 未算、1 不跳过、
+    /// 2 跳过；高两位是文章模式，另有 3 表示"只在块足够小时跳过"。文章模式的结论和主体大小
+    /// （[`Self::strict_max_chars`]）无关，只有第 3 种要按当前上限比一次，所以换文章主体、
+    /// 在两种模式间切换都不用清缓存。
     cache: Vec<Cell<u8>>,
     /// class/id 的分类（[`token_class`]），和模式无关，每个节点只算一次；[`UNKNOWN`] 表示还没算。
     classes: Vec<Cell<u8>>,
@@ -54,8 +60,46 @@ pub(crate) struct Skipper {
     features: Vec<Cell<u32>>,
     attachments: Vec<Cell<u8>>,
     order: Vec<yolowhtml_dom::NodeId>,
+    /// 先序区间编号和标题表（[`crate::outline`]）：只有文章模式找标题时才用到，第一次查询时才建，
+    /// 不走文章模式的页面不多遍历这一遍。`outline_spare` 是从工作区拿来、等着复用的分配。
+    outline: OnceCell<crate::outline::Outline>,
+    outline_spare: Cell<Option<crate::outline::Outline>>,
     /// 在不在正文区、子树里有没有 nav：按需计算并记住。
     landmarks: OnceCell<crate::landmarks::Landmarks>,
+}
+
+/// 一个元素的跳过结论（见 [`Skipper::verdict`]），带着原因供 [`Skipper::reason`] 诊断用。
+#[derive(Clone, Copy)]
+#[allow(dead_code)]
+enum Verdict {
+    Keep,
+    Skip(&'static str),
+    /// 文章模式的"文章杂项"：块的非链接文字不超过主体上限时才跳过。
+    IfSmall(&'static str),
+}
+
+impl Verdict {
+    const KEEP: u8 = 1;
+    const SKIP: u8 = 2;
+    const IF_SMALL: u8 = 3;
+
+    fn code(self) -> u8 {
+        match self {
+            Verdict::Keep => Self::KEEP,
+            Verdict::Skip(_) => Self::SKIP,
+            Verdict::IfSmall(_) => Self::IF_SMALL,
+        }
+    }
+}
+
+impl From<Result<Option<&'static str>, &'static str>> for Verdict {
+    fn from(r: Result<Option<&'static str>, &'static str>) -> Self {
+        match r {
+            Ok(None) => Verdict::Keep,
+            Ok(Some(why)) => Verdict::Skip(why),
+            Err(why) => Verdict::IfSmall(why),
+        }
+    }
 }
 
 /// Reusable per-worker vectors indexed by DOM node id.
@@ -63,11 +107,13 @@ pub(crate) struct Skipper {
 pub(crate) struct Scratch {
     visible: Vec<Visible>,
     has_block: Vec<bool>,
+    text_counts: Vec<u32>,
     cache: Vec<Cell<u8>>,
     classes: Vec<Cell<u8>>,
     features: Vec<Cell<u32>>,
     attachments: Vec<Cell<u8>>,
     order: Vec<yolowhtml_dom::NodeId>,
+    outline: crate::outline::Outline,
 }
 
 /// 子树里可见文字的统计，只排除硬跳过的内容。构造 Skipper 时自底向上一次算好。
@@ -160,8 +206,14 @@ fn compute(
     only_main: bool,
     mut visible: Vec<Visible>,
     mut has_block: Vec<bool>,
+    mut text_counts: Vec<u32>,
     mut order: Vec<yolowhtml_dom::NodeId>,
-) -> (Vec<Visible>, Vec<bool>, Vec<yolowhtml_dom::NodeId>) {
+) -> (
+    Vec<Visible>,
+    Vec<bool>,
+    Vec<u32>,
+    Vec<yolowhtml_dom::NodeId>,
+) {
     let n = html.len();
     order.clear();
     order.extend(
@@ -176,6 +228,10 @@ fn compute(
     }
     has_block.clear();
     has_block.resize(n, false);
+    text_counts.clear();
+    if only_main {
+        text_counts.resize(n, UNCOUNTED_TEXT);
+    }
     for id in order.iter().rev() {
         let node = html.get(*id);
         let id = node.id().index();
@@ -185,7 +241,9 @@ fn compute(
         for child in node.children() {
             if let Some(t) = child.as_text() {
                 if only_main && !hard {
-                    v.chars += crate::dom::count_non_whitespace(t);
+                    let k = crate::dom::count_non_whitespace(t);
+                    v.chars += k;
+                    text_counts[child.id().index()] = k.min(UNCOUNTED_TEXT as usize - 1) as u32;
                 }
                 continue;
             }
@@ -216,8 +274,11 @@ fn compute(
             visible[id] = v;
         }
     }
-    (visible, has_block, order)
+    (visible, has_block, text_counts, order)
 }
+
+/// [`Skipper::text_counts`] 里"没有数过"的标记。
+const UNCOUNTED_TEXT: u32 = u32::MAX;
 
 impl Skipper {
     pub(crate) fn new_with_scratch(
@@ -226,14 +287,16 @@ impl Skipper {
         scratch: &mut Scratch,
     ) -> Self {
         let body = html.body();
-        let (visible, has_block, order) = compute(
+        let (visible, has_block, text_counts, order) = compute(
             html,
             only_main,
             std::mem::take(&mut scratch.visible),
             std::mem::take(&mut scratch.has_block),
+            std::mem::take(&mut scratch.text_counts),
             std::mem::take(&mut scratch.order),
         );
         let total = visible.get(body.id().index()).map_or(0, |v| v.chars);
+        let outline_spare = Cell::new(Some(std::mem::take(&mut scratch.outline)));
         let n = html.len();
         let mut cache = std::mem::take(&mut scratch.cache);
         cache.clear();
@@ -258,11 +321,14 @@ impl Skipper {
             protect_chars: ((total as f64 * PROTECT_SHARE) as usize).max(PROTECT_MIN_CHARS),
             visible,
             has_block,
+            text_counts,
             cache,
             classes,
             features,
             attachments,
             order,
+            outline: OnceCell::new(),
+            outline_spare,
             landmarks: OnceCell::new(),
         }
     }
@@ -276,6 +342,7 @@ impl Skipper {
         if [
             self.visible.capacity(),
             self.has_block.capacity(),
+            self.text_counts.capacity(),
             self.cache.capacity(),
             self.classes.capacity(),
             self.features.capacity(),
@@ -292,11 +359,17 @@ impl Skipper {
         }
         scratch.visible = self.visible;
         scratch.has_block = self.has_block;
+        scratch.text_counts = self.text_counts;
         scratch.cache = self.cache;
         scratch.classes = self.classes;
         scratch.features = self.features;
         scratch.attachments = self.attachments;
         scratch.order = self.order;
+        scratch.outline = self
+            .outline
+            .into_inner()
+            .or_else(|| self.outline_spare.take())
+            .unwrap_or_default();
     }
 
     /// 节点 class/id 的分类，带缓存。
@@ -338,12 +411,28 @@ impl Skipper {
         self.features(node) & crate::features::COMMENTS != 0
     }
 
-    /// 打开或关掉文章模式（清掉判断缓存）。
-    /// `root_chars` 是文章主体的非链接文字数，用来给严格规则设上限。
+    /// 打开或关掉文章模式。`root_chars` 是文章主体的非链接文字数，用来给严格规则设上限。
+    /// 判断缓存按模式分开存、并且和上限无关（见 [`Self::cache`]），这里不用清。
     pub(crate) fn set_strict(&mut self, strict: bool, root_chars: usize) {
         self.strict = strict;
         self.strict_max_chars = (root_chars as f64 * STRICT_MAX_SHARE) as usize;
-        self.cache.iter().for_each(|c| c.set(0));
+    }
+
+    /// 先序区间编号和标题表。
+    pub(crate) fn outline(&self, html: &Html<'_>) -> &crate::outline::Outline {
+        self.outline.get_or_init(|| {
+            let mut o = self.outline_spare.take().unwrap_or_default();
+            o.rebuild(html, &self.order);
+            o
+        })
+    }
+
+    /// 文字节点 `node`（内容是 `text`）的非空白字符数：构造时数过就直接查表，否则现数。
+    pub(crate) fn text_chars(&self, node: &NodeR<'_>, text: &str) -> usize {
+        match self.text_counts.get(node.id().index()) {
+            Some(&k) if k != UNCOUNTED_TEXT => k as usize,
+            _ => crate::dom::count_non_whitespace(text),
+        }
     }
 
     /// 子树里不在链接里的可见文字数：正文的量，菜单和链接列表不算。
@@ -369,15 +458,30 @@ impl Skipper {
             return node.is_comment();
         }
         let cell = &self.cache[node.id().index()];
-        match cell.get() {
-            1 => false,
-            2 => true,
-            _ => {
-                let v = self.decide(node);
-                cell.set(1 + v as u8);
-                v
+        let shift = if self.strict { 2 } else { 0 };
+        let code = match (cell.get() >> shift) & 3 {
+            0 => {
+                let code = self.verdict(node).code();
+                cell.set(cell.get() | code << shift);
+                code
             }
+            code => code,
+        };
+        match code {
+            Verdict::KEEP => false,
+            Verdict::SKIP => true,
+            _ => self.strict_small(node),
         }
+    }
+
+    /// 文章模式下块小到可以按"文章杂项"删掉：非链接文字不超过当前主体的上限。
+    fn strict_small(&self, node: &NodeR<'_>) -> bool {
+        let vis = self
+            .visible
+            .get(node.id().index())
+            .copied()
+            .unwrap_or_default();
+        self.strict && vis.chars.saturating_sub(vis.link_chars) <= self.strict_max_chars
     }
 
     /// 子树里（不含自身）有没有块级元素。
@@ -385,36 +489,50 @@ impl Skipper {
         self.has_block[node.id().index()]
     }
 
-    fn decide(&self, node: &NodeR<'_>) -> bool {
-        self.reason(node).is_some()
+    /// 跳过这个元素的原因；不跳过时为 `None`。诊断时用它解释每个被删掉的块（平时的判断走
+    /// [`Self::skip`] 的缓存，不需要原因字符串）。
+    #[allow(dead_code)]
+    pub(crate) fn reason(&self, node: &NodeR<'_>) -> Option<&'static str> {
+        match self.verdict(node) {
+            Verdict::Keep => None,
+            Verdict::Skip(why) => Some(why),
+            Verdict::IfSmall(why) => self.strict_small(node).then_some(why),
+        }
     }
 
-    /// 跳过这个元素的原因；不跳过时为 `None`。诊断工具用它解释每个被删掉的块。
-    pub(crate) fn reason(&self, node: &NodeR<'_>) -> Option<&'static str> {
-        let el = element(node)?;
+    /// 跳过判断，和文章主体的大小上限无关：最后一条"文章杂项"规则只给出 [`Verdict::IfSmall`]，
+    /// 由调用方按当前上限比较。
+    fn verdict(&self, node: &NodeR<'_>) -> Verdict {
+        Verdict::from(self.verdict_inner(node))
+    }
+
+    fn verdict_inner(&self, node: &NodeR<'_>) -> Result<Option<&'static str>, &'static str> {
+        let Some(el) = element(node) else {
+            return Ok(None);
+        };
         let tag = el.tag();
         if is_non_content_tag(tag) && !is_text_button(node) {
-            return Some("non-content tag");
+            return Ok(Some("non-content tag"));
         }
         if is_hidden(node) && self.relaxed != Relax::Hidden {
-            return Some("hidden");
+            return Ok(Some("hidden"));
         }
         if !self.only_main {
-            return None;
+            return Ok(None);
         }
         if crate::classes::is_visually_hidden(el) {
-            return Some("visually hidden");
+            return Ok(Some("visually hidden"));
         }
         if matches!(tag, Tag::Nav | Tag::Aside | Tag::Footer) && !self.landmark_is_content(node) {
-            return Some("nav/aside/footer");
+            return Ok(Some("nav/aside/footer"));
         }
         // 署名区是正文：作者行通常是纯链接，不能当链接墙剪掉。放在导航/侧栏/页脚判断之后：
         // 侧栏里的"本站作者"列表、页脚的作者框照常剪。
         if crate::classes::is_author_list(el) {
-            return None;
+            return Ok(None);
         }
         if tag == Tag::A {
-            return is_skip_link(node, el).then_some("skip link");
+            return Ok(is_skip_link(node, el).then_some("skip link"));
         }
         // An embedded quotation is editorial content. Only protect compact
         // wrappers consisting of a quote and its loader, never a recommendation
@@ -430,7 +548,7 @@ impl Skipper {
                     || matches!(n.tag(), Some(Tag::Blockquote | Tag::Script))
             })
         {
-            return None;
+            return Ok(None);
         }
         // 页面标明的正文容器（itemprop="articleBody"、article-body、post-content……）本身不按
         // 文章模式的规则删：正文本身可能就是一串链接（目录、合集）
@@ -442,13 +560,13 @@ impl Skipper {
         let attachment = self.strict && self.editorial_attachment(node);
         if self.strict && !declared_body && !attachment {
             if crate::editorial::recommendation_list(node) {
-                return Some("article: attributed recommendation list");
+                return Ok(Some("article: attributed recommendation list"));
             }
             if crate::article::is_cleaned_tag(tag) && !is_disclosure_header(node) {
-                return Some("article: cleaned tag");
+                return Ok(Some("article: cleaned tag"));
             }
             if crate::article::link_dense(node, self) {
-                return Some("article: link dense");
+                return Ok(Some("article: link dense"));
             }
         }
         // 页面自己标出的正文区域（`<main>`、`role="main"`）不用软规则删
@@ -456,7 +574,7 @@ impl Skipper {
             || matches!(tag, Tag::Body | Tag::Html)
             || is_main_landmark(el)
         {
-            return None;
+            return Ok(None);
         }
         let vis = self
             .visible
@@ -464,7 +582,7 @@ impl Skipper {
             .copied()
             .unwrap_or_default();
         if vis.chars >= self.protect_chars {
-            return None;
+            return Ok(None);
         }
         let dense = vis.links >= LINK_BLOCK_MIN_LINKS
             && vis.link_chars as f64 >= vis.chars as f64 * LINK_BLOCK_MIN_SHARE;
@@ -479,8 +597,6 @@ impl Skipper {
         // 才这样对待（文档首页的目录）
         let in_relaxed_main =
             |e: Element<'_>| self.relaxed == Relax::LinkBlocks && e.attr("role") == Some("main");
-        let strict_small =
-            self.strict && vis.chars.saturating_sub(vis.link_chars) <= self.strict_max_chars;
         // 链接密集的块不可能是正文本身，文章模式里不受大小上限限制
         if link_block
             && !declared_body
@@ -491,27 +607,28 @@ impl Skipper {
                         || a.as_element().is_some_and(in_relaxed_main)
                 }))
         {
-            Some("link block")
+            Ok(Some("link block"))
         } else if self.relaxed == Relax::LinkBlocks {
-            None
+            Ok(None)
         } else if tag == Tag::Header
             && !self.landmarks(node).in_content_area(node)
             && self.landmarks(node).has_nav_below(node)
         {
-            Some("header with nav")
+            Ok(Some("header with nav"))
         } else if el.attr("role").is_some_and(|r| SKIP_ROLES.contains(&r)) {
-            Some("skip role")
+            Ok(Some("skip role"))
         } else if self.classes(node, el) & (NEG | POS) == NEG {
-            Some("negative class/id")
-        } else if strict_small
+            Ok(Some("negative class/id"))
+        } else if self.strict
             && !declared_body
             && !attachment
             && (self.classes(node, el) & STRICT != 0
                 || crate::article::is_furniture(node, el, self.features(node)))
         {
-            Some("article furniture")
+            // 只有这条规则看块的大小：结论交给调用方按当前上限决定
+            Err("article furniture")
         } else {
-            None
+            Ok(None)
         }
     }
 

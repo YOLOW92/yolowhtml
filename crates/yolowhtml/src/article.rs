@@ -65,7 +65,7 @@ pub(crate) fn prose(node: &NodeR<'_>, skipper: &Skipper, wl: crate::markdown::Wh
         for c in n.children() {
             if let Some(t) = c.as_text() {
                 if keep && !in_link {
-                    total += crate::dom::count_non_whitespace(t);
+                    total += skipper.text_chars(&c, t);
                 }
             } else if c.is_element() && !skipper.skip(&c) {
                 // 块级元素开始自己的段落；行内元素沿用所在段落的去留
@@ -103,7 +103,7 @@ pub(crate) fn text_without_comments(node: &NodeR<'_>, skipper: &Skipper) -> usiz
     let mut total = 0;
     for c in node.children() {
         if let Some(t) = c.as_text() {
-            total += crate::dom::count_non_whitespace(t);
+            total += skipper.text_chars(&c, t);
         } else if c.is_element() && !skipper.skip(&c) && !skipper.is_comments(&c) {
             total += text_without_comments(&c, skipper);
         }
@@ -117,7 +117,7 @@ pub(crate) fn has_paragraph(node: &NodeR<'_>, skipper: &Skipper) -> bool {
         .any(|d| d.tag() == Some(Tag::P) && skipper.content_chars(&d) >= 80 && !skipper.skip(&d))
 }
 
-/// 文章模式里整个去掉的标签（trafilatura 的 MANUALLY_CLEANED 里 pagesift 默认还保留的那些）：
+/// 文章模式里整个去掉的标签（trafilatura 的 MANUALLY_CLEANED 里 yolowhtml 默认还保留的那些）：
 /// 表单和按钮、时间戳。
 pub(crate) fn is_cleaned_tag(tag: Tag) -> bool {
     matches!(
@@ -260,10 +260,7 @@ pub(crate) fn scored_root<'a>(
         *only = narrow_to_headline(*only, headline, skipper);
     }
     let first = *nodes.first()?;
-    if nodes
-        .iter()
-        .any(|n| n.descendants().any(|d| d.tag() == Some(Tag::H1)))
-    {
+    if nodes.iter().any(|n| skipper.outline(dom).has_h1(n)) {
         return Some(Root {
             nodes,
             headline: None,
@@ -308,9 +305,11 @@ const HEADER_EXTRA_CHARS: usize = 2000;
 
 /// 页面没有可见 `<h1>` 时，用文档标题补一个。标题过长（导航堆叠、站点拼接）时不补。
 fn document_title(dom: &Html<'_>, skipper: &Skipper) -> Option<String> {
-    let has_visible_h1 = dom.root().descendants().any(|n| {
-        n.tag() == Some(Tag::H1) && !skipper.skip(&n) && !n.ancestors().any(|a| skipper.skip(&a))
-    });
+    let has_visible_h1 = skipper
+        .outline(dom)
+        .h1_in(&dom.root())
+        .map(|id| dom.get(id))
+        .any(|n| !skipper.skip(&n) && !n.ancestors().any(|a| skipper.skip(&a)));
     if has_visible_h1 {
         return None;
     }
@@ -327,10 +326,15 @@ fn document_title(dom: &Html<'_>, skipper: &Skipper) -> Option<String> {
     // 被裁掉的 <h1>（在页头、预览块里）和文档标题一致时用它的文字：文档标题常拼着站名、栏目
     // （"标题 - 栏目 | 站名"），<h1> 是文章自己的标题
     let signature = TitleSignature::new(&title);
-    let h1 = dom.root().descendants().find_map(|n| {
-        (n.tag() == Some(Tag::H1))
-            .then(|| n.text().split_whitespace().collect::<Vec<_>>().join(" "))
-            .filter(|t| !t.is_empty() && title_agrees_with(&signature, t))
+    let h1 = skipper.outline(dom).h1_in(&dom.root()).find_map(|id| {
+        Some(
+            dom.get(id)
+                .text()
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" "),
+        )
+        .filter(|t| !t.is_empty() && title_agrees_with(&signature, t))
     });
     Some(h1.unwrap_or(title))
 }
@@ -343,7 +347,7 @@ fn with_headline<'a>(
     skipper: &Skipper,
     page_title: Option<NodeR<'a>>,
 ) -> (NodeR<'a>, Option<String>) {
-    let inside = root.descendants().any(|d| d.tag() == Some(Tag::H1));
+    let inside = skipper.outline(dom).has_h1(&root);
     if inside {
         return (root, None);
     }
@@ -360,7 +364,13 @@ fn with_headline<'a>(
         .filter(|h| !h.ancestors().any(|a| a.tag() == Some(Tag::Article)));
     let Some(h1) = agreeing
         .or_else(|| {
-            headline_scope.descendants().find(|n| {
+            // 候选只有 `<h1>`、`<h2>`：按先序取出标题表里落在范围内的那段，和遍历子树的先后一致
+            let candidates = if scope.is_some() {
+                skipper.outline(dom).h1_h2_in(&headline_scope)
+            } else {
+                skipper.outline(dom).h1_in(&headline_scope).collect()
+            };
+            candidates.into_iter().map(|id| dom.get(id)).find(|n| {
                 let title = n.tag() == Some(Tag::H1)
                     || (scope.is_some()
                         && n.tag() == Some(Tag::H2)
@@ -381,14 +391,18 @@ fn with_headline<'a>(
                 .find(|n| n.tag() == Some(Tag::Title))?
                 .text();
             let signature = TitleSignature::new(&title);
-            dom.root().descendants().find(|n| {
-                n.tag() == Some(Tag::H1)
-                    && !skipper.skip(n)
-                    && !n
-                        .ancestors()
-                        .any(|a| skipper.skip(&a) || a.tag() == Some(Tag::Article))
-                    && title_agrees_with(&signature, &n.text())
-            })
+            skipper
+                .outline(dom)
+                .h1_in(&dom.root())
+                .map(|id| dom.get(id))
+                .find(|n| {
+                    n.tag() == Some(Tag::H1)
+                        && !skipper.skip(n)
+                        && !n
+                            .ancestors()
+                            .any(|a| skipper.skip(&a) || a.tag() == Some(Tag::Article))
+                        && title_agrees_with(&signature, &n.text())
+                })
         })
     else {
         // 页面上唯一可见的标题可能在另一个被裁掉的预览块里（食谱站的 quickview 就是）。
@@ -427,10 +441,11 @@ pub(crate) fn headline_owner<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option
         .to_lowercase();
     let signature = TitleSignature::new(&title);
     let mut owner = None;
-    for h in dom
-        .root()
-        .descendants()
-        .filter(|n| matches!(n.tag(), Some(Tag::H1 | Tag::H2)))
+    for h in skipper
+        .outline(dom)
+        .h1_h2_in(&dom.root())
+        .into_iter()
+        .map(|id| dom.get(id))
     {
         if skipper.skip(&h) || h.ancestors().any(|a| skipper.skip(&a)) {
             continue;
@@ -595,7 +610,8 @@ pub(crate) fn page_headline<'a>(dom: &'a Html<'a>, skipper: &Skipper) -> Option<
     let len = |s: &str| s.chars().filter(|c| c.is_alphanumeric()).count();
     let min_len = (len(&title) as f64 * HEADLINE_MIN_TITLE_SHARE).ceil() as usize;
     let signature = TitleSignature::new(&title);
-    dom.root().descendants().find(|n| {
+    let candidates = skipper.outline(dom).h1_h2_in(&dom.root());
+    candidates.into_iter().map(|id| dom.get(id)).find(|n| {
         matches!(n.tag(), Some(Tag::H1 | Tag::H2))
             && !skipper.skip(n)
             && {
